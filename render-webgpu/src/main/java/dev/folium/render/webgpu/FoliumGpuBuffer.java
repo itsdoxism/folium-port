@@ -2,42 +2,29 @@ package dev.folium.render.webgpu;
 
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import dev.folium.platform.GraphicsHost;
 
-import java.nio.ByteBuffer;
-import java.util.function.Supplier;
-
-/**
- * Minimal CPU-backed RenderPearl buffer.
- *
- * This is deliberately not the final WebGPU implementation. It lets Minecraft
- * construct its early dynamic UBO ring buffers while Folium brings the host
- * WebGPU buffer bridge online incrementally.
- */
 public final class FoliumGpuBuffer implements GpuBuffer {
-    private final Supplier<String> label;
-    private final int usage;
+    private final GraphicsHost graphics;
+    private final int token;
     private final long size;
-    private ByteBuffer storage;
+    private final int usage;
     private boolean closed;
 
-    public FoliumGpuBuffer(Supplier<String> label, int usage, long size) {
-        if (size < 0 || size > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Unsupported Folium buffer size: " + size);
-        }
-
-        this.label = label;
-        this.usage = usage;
+    FoliumGpuBuffer(GraphicsHost graphics, int token, long size, int usage) {
+        this.graphics = graphics;
+        this.token = token;
         this.size = size;
-        this.storage = ByteBuffer.allocate((int) size);
+        this.usage = usage;
     }
 
-    public FoliumGpuBuffer(Supplier<String> label, int usage, ByteBuffer initialData) {
-        this(label, usage, initialData.remaining());
-
-        ByteBuffer source = initialData.duplicate();
-        ByteBuffer destination = storage.duplicate();
-        destination.put(source);
-        destination.flip();
+    static FoliumGpuBuffer bootstrapTriangleIndexBuffer(GraphicsHost graphics) {
+        return new FoliumGpuBuffer(
+            graphics,
+            graphics.createBootstrapTriangleIndexBuffer(),
+            6L,
+            USAGE_INDEX | USAGE_COPY_DST
+        );
     }
 
     @Override
@@ -62,40 +49,23 @@ public final class FoliumGpuBuffer implements GpuBuffer {
         boolean read,
         boolean write
     ) {
-        ensureOpen();
-
-        if (offset < 0 || length < 0 || offset + length > size) {
-            throw new IndexOutOfBoundsException(
-                "Folium buffer map outside range: offset=" + offset
-                    + ", length=" + length + ", size=" + size
-            );
-        }
-
-        ByteBuffer view = storage.duplicate();
-        view.position(Math.toIntExact(offset));
-        view.limit(Math.toIntExact(offset + length));
-        ByteBuffer slice = view.slice();
-
-        GpuBufferSlice bufferSlice = new GpuBufferSlice(this, offset, length);
-        return new GpuBufferSlice.MappedView(bufferSlice, slice, () -> {
-            // CPU-backed bootstrap buffer: writes are already visible.
-            // The WebGPU implementation will upload dirty ranges here.
-        });
+        throw new UnsupportedOperationException(
+            "Folium WebGPU: mapped buffers are not implemented yet"
+        );
     }
 
     @Override
     public void close() {
-        closed = true;
-        storage = null;
-    }
-
-    public String debugLabel() {
-        return label == null ? "" : label.get();
-    }
-
-    private void ensureOpen() {
-        if (closed || storage == null) {
-            throw new IllegalStateException("FoliumGpuBuffer is closed");
+        if (!closed) {
+            graphics.destroyBuffer(token);
+            closed = true;
         }
+    }
+
+    int token() {
+        if (closed) {
+            throw new IllegalStateException("Folium buffer is closed");
+        }
+        return token;
     }
 }
