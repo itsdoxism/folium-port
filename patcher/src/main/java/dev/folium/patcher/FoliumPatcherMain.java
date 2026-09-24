@@ -797,6 +797,85 @@ public final class FoliumPatcherMain {
         method.maxLocals = 1;
     }
 
+    private static byte[] patchClientHandshakeListener(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode method = requireMethod(
+            node,
+            "setEncryption",
+            "(Lnet/minecraft/network/protocol/login/ServerboundKeyPacket;Ljavax/crypto/Cipher;Ljavax/crypto/Cipher;)V"
+        );
+
+        method.instructions.clear();
+        method.tryCatchBlocks.clear();
+        if (method.localVariables != null) {
+            method.localVariables.clear();
+        }
+
+        InsnList code = method.instructions;
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETSTATIC,
+            "net/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl$State",
+            "ENCRYPTING",
+            "Lnet/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl$State;"
+        ));
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "net/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl",
+            "switchState",
+            "(Lnet/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl$State;)V",
+            false
+        ));
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETFIELD,
+            "net/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl",
+            "connection",
+            "Lnet/minecraft/network/Connection;"
+        ));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKEVIRTUAL,
+            "net/minecraft/network/Connection",
+            "send",
+            "(Lnet/minecraft/network/protocol/Packet;)V",
+            false
+        ));
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETFIELD,
+            "net/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl",
+            "connection",
+            "Lnet/minecraft/network/Connection;"
+        ));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKEVIRTUAL,
+            "net/minecraft/network/Connection",
+            "setEncryptionKey",
+            "(Ljavax/crypto/Cipher;Ljavax/crypto/Cipher;)V",
+            false
+        ));
+
+        code.add(new InsnNode(Opcodes.RETURN));
+        method.maxStack = 4;
+        method.maxLocals = 4;
+
+        applied.add(
+            "ClientHandshakePacketListenerImpl.setEncryption: send key packet then enable stream cipher"
+        );
+
+        return write(node);
+    }
+
     private static byte[] patchMessageBox(
         byte[] original,
         List<String> applied
