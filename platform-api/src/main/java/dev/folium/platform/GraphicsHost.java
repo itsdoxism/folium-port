@@ -1,5 +1,7 @@
 package dev.folium.platform;
 
+import java.nio.ByteBuffer;
+
 public interface GraphicsHost {
     boolean isWebGpuAvailable();
     boolean isDeviceReady();
@@ -12,6 +14,7 @@ public interface GraphicsHost {
     void releaseTextureView(int textureViewToken);
 
     int createBuffer(String label, int usage, long size);
+    void writeBuffer(int bufferToken, long offset, ByteBuffer data);
     int createBootstrapTriangleIndexBuffer();
     void destroyBuffer(int bufferToken);
 
