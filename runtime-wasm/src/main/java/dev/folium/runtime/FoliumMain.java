@@ -5,6 +5,15 @@ public final class FoliumMain {
     }
 
     public static void main(String[] args) {
-        System.out.println("Folium WASM-GC runtime booted.");
+        if (!WebGpuProbe.prepareCanvas()) {
+            WebGpuProbe.setStatus("Folium booted, but canvas was not found", false);
+            return;
+        }
+
+        if (WebGpuProbe.isAvailable()) {
+            WebGpuProbe.setStatus("Folium WASM-GC → browser bridge OK · WebGPU available", true);
+        } else {
+            WebGpuProbe.setStatus("Folium WASM-GC → browser bridge OK · WebGPU unavailable", false);
+        }
     }
 }
