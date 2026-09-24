@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Folium WebGPU probe</title>
+    <title>Folium WebGPU preboot</title>
     <style>
         html, body {
             width: 100%;
@@ -40,7 +40,40 @@
 </head>
 <body>
 <canvas id="folium-canvas"></canvas>
-<div id="status">Folium · starting…</div>
-<script type="module" src="./folium-bootstrap.js"></script>
+<div id="status">Preparing Folium WebGPU host…</div>
+
+<script type="module">
+import {
+    prepareFoliumGraphics,
+    renderFoliumBootstrapFrame
+} from "./folium-host.js";
+
+const status = document.getElementById("status");
+
+(async () => {
+    try {
+        const host = await prepareFoliumGraphics();
+
+        if (host.deviceReady) {
+            renderFoliumBootstrapFrame();
+            status.textContent = "WebGPU preboot OK · starting Java/WASM…";
+            status.dataset.ok = "true";
+        } else {
+            status.textContent = "WebGPU unavailable · starting Java/WASM for diagnostics…";
+            status.dataset.ok = "false";
+        }
+
+        const module = await TeaVM.wasmGC.load(
+            "../build/generated/teavm/wasm-gc/folium-smoke.wasm"
+        );
+
+        module.exports.main([]);
+    } catch (error) {
+        console.error(error);
+        status.textContent = "Folium preboot failed — see console";
+        status.dataset.ok = "false";
+    }
+})();
+</script>
 </body>
 </html>
