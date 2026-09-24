@@ -124,13 +124,33 @@ public final class FoliumGpuDevice implements GpuDevice {
     @Override
     public GpuTextureView createTextureView(GpuTexture texture) {
         ensureOpen();
-        throw unsupported("createTextureView(texture)");
+        FoliumGpuTexture foliumTexture = requireTexture(texture);
+        return createTextureView(foliumTexture, 0, foliumTexture.getMipLevels());
     }
 
     @Override
     public GpuTextureView createTextureView(GpuTexture texture, int baseMipLevel, int mipLevels) {
         ensureOpen();
-        throw unsupported("createTextureView(texture, mip)");
+        FoliumGpuTexture foliumTexture = requireTexture(texture);
+
+        if (baseMipLevel < 0 || mipLevels <= 0 ||
+            baseMipLevel + mipLevels > foliumTexture.getMipLevels()) {
+            throw new IllegalArgumentException("Invalid Folium texture-view mip range");
+        }
+
+        int token = graphics.createTextureView(
+            foliumTexture.token(),
+            baseMipLevel,
+            mipLevels
+        );
+
+        return new FoliumGpuTextureView(
+            graphics,
+            foliumTexture,
+            token,
+            baseMipLevel,
+            mipLevels
+        );
     }
 
     @Override
@@ -182,8 +202,11 @@ public final class FoliumGpuDevice implements GpuDevice {
         throw unsupported("getDeviceInfo");
     }
 
-    public boolean isClosed() {
-        return closed;
+    private static FoliumGpuTexture requireTexture(GpuTexture texture) {
+        if (!(texture instanceof FoliumGpuTexture foliumTexture)) {
+            throw new IllegalArgumentException("Expected Folium texture");
+        }
+        return foliumTexture;
     }
 
     private void ensureOpen() {
