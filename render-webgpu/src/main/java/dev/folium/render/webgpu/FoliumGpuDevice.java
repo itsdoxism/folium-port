@@ -7,6 +7,7 @@ import com.mojang.renderpearl.api.commands.GpuQueryPool;
 import com.mojang.renderpearl.api.device.DeviceInfo;
 import com.mojang.renderpearl.api.device.GpuDevice;
 import com.mojang.renderpearl.api.device.GpuSurface;
+import com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.pipeline.ShaderSource;
 import com.mojang.renderpearl.api.textures.AddressMode;
@@ -130,7 +131,7 @@ public final class FoliumGpuDevice implements GpuDevice {
     }
 
     @Override
-    public CompletableFuture<?> compilePipeline(
+    public CompletableFuture<CompiledRenderPipeline.Pending> compilePipeline(
         RenderPipeline pipeline,
         ShaderSource shaderSource,
         Executor executor
