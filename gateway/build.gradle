@@ -14,12 +14,8 @@ repositories {
 
 dependencies {
     implementation "org.java-websocket:Java-WebSocket:1.6.0"
-    testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"
 }
 
-tasks.named("test") {
-    useJUnitPlatform()
-}
 
 application {
     mainClass = "dev.folium.gateway.FoliumGatewayMain"
