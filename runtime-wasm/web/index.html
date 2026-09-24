@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Folium WASM smoke test</title>
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            display: grid;
+            place-items: center;
+            background: #0b0d0c;
+            color: #e7ece9;
+            font: 16px/1.5 system-ui, sans-serif;
+        }
+        main { text-align: center; }
+        code { opacity: .75; }
+    </style>
+    <script src="../build/generated/teavm/wasm-gc/folium-smoke.wasm-runtime.js"></script>
+</head>
+<body>
+<main>
+    <h1>Folium</h1>
+    <div id="status">Loading WASM-GC…</div>
+</main>
+<script>
+(async () => {
+    const status = document.getElementById("status");
+    try {
+        const module = await TeaVM.wasmGC.load(
+            "../build/generated/teavm/wasm-gc/folium-smoke.wasm"
+        );
+        module.exports.main([]);
+        status.textContent = "WASM-GC boot OK";
+    } catch (error) {
+        console.error(error);
+        status.textContent = "Boot failed — see console";
+    }
+})();
+</script>
+</body>
+</html>
