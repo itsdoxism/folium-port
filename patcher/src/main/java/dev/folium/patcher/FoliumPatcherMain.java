@@ -66,6 +66,8 @@ public final class FoliumPatcherMain {
         "com/mojang/blaze3d/platform/MacosUtil.class";
     private static final String CONNECTION =
         "net/minecraft/network/Connection.class";
+    private static final String CLIENT_HANDSHAKE_LISTENER =
+        "net/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl.class";
 
     private FoliumPatcherMain() {
     }
@@ -133,6 +135,7 @@ public final class FoliumPatcherMain {
         boolean sawMessageBox = false;
         boolean sawMacosUtil = false;
         boolean sawConnection = false;
+        boolean sawClientHandshakeListener = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -227,6 +230,9 @@ public final class FoliumPatcherMain {
                 } else if (CONNECTION.equals(entry.getName())) {
                     bytes = patchConnection(bytes, applied);
                     sawConnection = true;
+                } else if (CLIENT_HANDSHAKE_LISTENER.equals(entry.getName())) {
+                    bytes = patchClientHandshakeListener(bytes, applied);
+                    sawClientHandshakeListener = true;
                 }
 
                 out.write(bytes);
@@ -256,7 +262,8 @@ public final class FoliumPatcherMain {
             !sawMouseHandler ||
             !sawMessageBox ||
             !sawMacosUtil ||
-            !sawConnection
+            !sawConnection ||
+            !sawClientHandshakeListener
         ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
