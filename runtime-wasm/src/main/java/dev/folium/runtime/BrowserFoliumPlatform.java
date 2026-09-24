@@ -14,7 +14,7 @@ public final class BrowserFoliumPlatform implements FoliumPlatform {
     private final ClockHost clock = new BrowserClockHost();
 
     private final WindowHost window = new BrowserWindowHost();
-    private final InputHost input = new UnsupportedInputHost();
+    private final InputHost input = new BrowserInputHost();
     private final NetworkHost network = endpoint -> {
         throw unsupported("network");
     };
@@ -60,15 +60,6 @@ public final class BrowserFoliumPlatform implements FoliumPlatform {
         return new UnsupportedOperationException(
             "Folium browser " + subsystem + " host is not implemented yet"
         );
-    }
-
-    private static final class UnsupportedInputHost implements InputHost {
-        @Override public boolean keyDown(int keyCode) { return false; }
-        @Override public boolean mouseButtonDown(int button) { return false; }
-        @Override public double mouseX() { return 0.0; }
-        @Override public double mouseY() { return 0.0; }
-        @Override public double wheelDeltaX() { return 0.0; }
-        @Override public double wheelDeltaY() { return 0.0; }
     }
 
     private static final class UnsupportedStorageHost implements StorageHost {
