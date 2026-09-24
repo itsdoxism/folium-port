@@ -11,6 +11,8 @@ public interface FoliumPlatform {
 
     InputHost input();
 
+    GraphicsHost graphics();
+
     NetworkHost network();
 
     StorageHost storage();
