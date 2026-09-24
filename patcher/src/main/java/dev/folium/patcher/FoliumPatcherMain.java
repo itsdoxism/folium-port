@@ -32,6 +32,8 @@ public final class FoliumPatcherMain {
         "net/minecraft/client/renderer/ShaderManager.class";
     private static final String PREFERRED_GRAPHICS_API =
         "net/minecraft/client/PreferredGraphicsApi.class";
+    private static final String RENDER_SYSTEM =
+        "com/mojang/blaze3d/systems/RenderSystem.class";
 
     private FoliumPatcherMain() {
     }
@@ -82,6 +84,7 @@ public final class FoliumPatcherMain {
         List<String> applied = new ArrayList<>();
         boolean sawShaderManager = false;
         boolean sawGraphicsApi = false;
+        boolean sawRenderSystem = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -125,6 +128,9 @@ public final class FoliumPatcherMain {
                 } else if (PREFERRED_GRAPHICS_API.equals(entry.getName())) {
                     bytes = patchPreferredGraphicsApi(bytes, applied);
                     sawGraphicsApi = true;
+                } else if (RENDER_SYSTEM.equals(entry.getName())) {
+                    bytes = patchRenderSystem(bytes, applied);
+                    sawRenderSystem = true;
                 }
 
                 out.write(bytes);
@@ -135,7 +141,7 @@ public final class FoliumPatcherMain {
             throw failure;
         }
 
-        if (!sawShaderManager || !sawGraphicsApi) {
+        if (!sawShaderManager || !sawGraphicsApi || !sawRenderSystem) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
                 "Input JAR does not match the expected Minecraft 26.3 client layout"
@@ -264,6 +270,42 @@ public final class FoliumPatcherMain {
 
         applied.add(
             "PreferredGraphicsApi.getBackendsToTry: force FoliumWebGpuBackend"
+        );
+
+        return write(node);
+    }
+
+    private static byte[] patchRenderSystem(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode method = requireMethod(
+            node,
+            "initBackendSystem",
+            "()Lnet/minecraft/util/TimeSource$NanoTimeSource;"
+        );
+
+        method.instructions.clear();
+        method.tryCatchBlocks.clear();
+        if (method.localVariables != null) {
+            method.localVariables.clear();
+        }
+
+        method.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumBackendBootstrap",
+            "initBackendSystem",
+            "()Lnet/minecraft/util/TimeSource$NanoTimeSource;",
+            false
+        ));
+        method.instructions.add(new InsnNode(Opcodes.ARETURN));
+        method.maxStack = 1;
+        method.maxLocals = 0;
+
+        applied.add(
+            "RenderSystem.initBackendSystem: replace SDL bootstrap with Folium clock"
         );
 
         return write(node);
