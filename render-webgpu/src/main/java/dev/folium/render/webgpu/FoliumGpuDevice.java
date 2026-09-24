@@ -25,13 +25,6 @@ import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-/**
- * First RenderPearl device wrapper backed by a WebGPU device prepared by the
- * browser preboot phase.
- *
- * Unsupported operations intentionally fail loudly until each RenderPearl
- * contract has a real WebGPU implementation.
- */
 public final class FoliumGpuDevice implements GpuDevice {
     private final GraphicsHost graphics;
     private boolean closed;
@@ -52,7 +45,7 @@ public final class FoliumGpuDevice implements GpuDevice {
     @Override
     public CommandEncoder createCommandEncoder() {
         ensureOpen();
-        throw unsupported("createCommandEncoder");
+        return new FoliumCommandEncoder(graphics);
     }
 
     @Override
@@ -78,8 +71,15 @@ public final class FoliumGpuDevice implements GpuDevice {
         int depthOrLayers,
         int mipLevels
     ) {
-        ensureOpen();
-        throw unsupported("createTexture(Supplier, ...)");
+        return createTexture(
+            label == null ? "Folium texture" : label.get(),
+            usage,
+            format,
+            width,
+            height,
+            depthOrLayers,
+            mipLevels
+        );
     }
 
     @Override
@@ -93,7 +93,32 @@ public final class FoliumGpuDevice implements GpuDevice {
         int mipLevels
     ) {
         ensureOpen();
-        throw unsupported("createTexture(String, ...)");
+
+        if (width <= 0 || height <= 0 || depthOrLayers <= 0 || mipLevels <= 0) {
+            throw new IllegalArgumentException("Invalid Folium texture dimensions/mip count");
+        }
+
+        int token = graphics.createTexture(
+            label,
+            usage,
+            format.name(),
+            width,
+            height,
+            depthOrLayers,
+            mipLevels
+        );
+
+        return new FoliumGpuTexture(
+            graphics,
+            token,
+            label,
+            usage,
+            format,
+            width,
+            height,
+            depthOrLayers,
+            mipLevels
+        );
     }
 
     @Override
