@@ -310,6 +310,32 @@ public final class BrowserInputHost implements InputHost {
     """)
     public native void clearEvents();
 
+    @Override
+    public void startTextInput() {
+        BrowserTextInputBridge.start();
+    }
+
+    @Override
+    public void stopTextInput() {
+        BrowserTextInputBridge.stop();
+    }
+
+    @Override
+    public boolean textInputActive() {
+        return BrowserTextInputBridge.isActive();
+    }
+
+    @Override
+    public String getClipboard() {
+        BrowserClipboardBridge.refreshClipboard();
+        return BrowserClipboardBridge.getClipboard();
+    }
+
+    @Override
+    public void setClipboard(String text) {
+        BrowserClipboardBridge.setClipboard(text);
+    }
+
     @JSBody(script = """
         const queue = globalThis.__foliumInputQueue;
         const event = queue?.shift() || null;
