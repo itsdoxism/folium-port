@@ -36,6 +36,10 @@ public final class FoliumPatcherMain {
         "com/mojang/blaze3d/systems/RenderSystem.class";
     private static final String WINDOW =
         "com/mojang/blaze3d/platform/Window.class";
+    private static final String SDL_EVENT_HANDLER =
+        "com/mojang/blaze3d/platform/SDLEventHandler.class";
+    private static final String INPUT_CONSTANTS =
+        "com/mojang/blaze3d/platform/InputConstants.class";
 
     private FoliumPatcherMain() {
     }
@@ -88,6 +92,8 @@ public final class FoliumPatcherMain {
         boolean sawGraphicsApi = false;
         boolean sawRenderSystem = false;
         boolean sawWindow = false;
+        boolean sawEventHandler = false;
+        boolean sawInputConstants = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -137,6 +143,12 @@ public final class FoliumPatcherMain {
                 } else if (WINDOW.equals(entry.getName())) {
                     bytes = patchWindow(bytes, applied);
                     sawWindow = true;
+                } else if (SDL_EVENT_HANDLER.equals(entry.getName())) {
+                    bytes = patchSdlEventHandler(bytes, applied);
+                    sawEventHandler = true;
+                } else if (INPUT_CONSTANTS.equals(entry.getName())) {
+                    bytes = patchInputConstants(bytes, applied);
+                    sawInputConstants = true;
                 }
 
                 out.write(bytes);
@@ -147,7 +159,14 @@ public final class FoliumPatcherMain {
             throw failure;
         }
 
-        if (!sawShaderManager || !sawGraphicsApi || !sawRenderSystem || !sawWindow) {
+        if (
+            !sawShaderManager ||
+            !sawGraphicsApi ||
+            !sawRenderSystem ||
+            !sawWindow ||
+            !sawEventHandler ||
+            !sawInputConstants
+        ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
                 "Input JAR does not match the expected Minecraft 26.3 client layout"
@@ -277,6 +296,138 @@ public final class FoliumPatcherMain {
         applied.add(
             "PreferredGraphicsApi.getBackendsToTry: force FoliumWebGpuBackend"
         );
+
+        return write(node);
+    }
+
+    private static byte[] patchSdlEventHandler(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode pollEvents = requireMethod(node, "pollEvents", "()V");
+        pollEvents.instructions.clear();
+        pollEvents.tryCatchBlocks.clear();
+        if (pollEvents.localVariables != null) {
+            pollEvents.localVariables.clear();
+        }
+        pollEvents.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        pollEvents.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETFIELD,
+            "com/mojang/blaze3d/platform/SDLEventHandler",
+            "minecraft",
+            "Lnet/minecraft/client/Minecraft;"
+        ));
+        pollEvents.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        pollEvents.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETFIELD,
+            "com/mojang/blaze3d/platform/SDLEventHandler",
+            "window",
+            "Lcom/mojang/blaze3d/platform/Window;"
+        ));
+        pollEvents.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumInputPump",
+            "poll",
+            "(Lnet/minecraft/client/Minecraft;Lcom/mojang/blaze3d/platform/Window;)V",
+            false
+        ));
+        pollEvents.instructions.add(new InsnNode(Opcodes.RETURN));
+        pollEvents.maxStack = 2;
+        pollEvents.maxLocals = 1;
+
+        MethodNode flush = requireMethod(node, "flushInputEvents", "()V");
+        flush.instructions.clear();
+        flush.tryCatchBlocks.clear();
+        if (flush.localVariables != null) {
+            flush.localVariables.clear();
+        }
+        flush.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumInputPump",
+            "clear",
+            "()V",
+            false
+        ));
+        flush.instructions.add(new InsnNode(Opcodes.RETURN));
+        flush.maxStack = 0;
+        flush.maxLocals = 1;
+
+        applied.add("SDLEventHandler.pollEvents: drain Folium DOM input queue");
+        applied.add("SDLEventHandler.flushInputEvents: clear Folium DOM input queue");
+
+        return write(node);
+    }
+
+    private static byte[] patchInputConstants(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode isKeyDown = requireMethod(node, "isKeyDown", "(I)Z");
+        isKeyDown.instructions.clear();
+        isKeyDown.tryCatchBlocks.clear();
+        if (isKeyDown.localVariables != null) {
+            isKeyDown.localVariables.clear();
+        }
+        isKeyDown.instructions.add(new VarInsnNode(Opcodes.ILOAD, 0));
+        isKeyDown.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumInputBridge",
+            "isKeyDown",
+            "(I)Z",
+            false
+        ));
+        isKeyDown.instructions.add(new InsnNode(Opcodes.IRETURN));
+        isKeyDown.maxStack = 1;
+        isKeyDown.maxLocals = 1;
+
+        MethodNode grabMouse = requireMethod(
+            node,
+            "grabMouse",
+            "(Lcom/mojang/blaze3d/platform/Window;DD)V"
+        );
+        grabMouse.instructions.clear();
+        grabMouse.tryCatchBlocks.clear();
+        if (grabMouse.localVariables != null) {
+            grabMouse.localVariables.clear();
+        }
+        grabMouse.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumInputBridge",
+            "grabMouse",
+            "()V",
+            false
+        ));
+        grabMouse.instructions.add(new InsnNode(Opcodes.RETURN));
+        grabMouse.maxStack = 0;
+        grabMouse.maxLocals = 5;
+
+        MethodNode releaseMouse = requireMethod(
+            node,
+            "releaseMouse",
+            "(Lcom/mojang/blaze3d/platform/Window;DD)V"
+        );
+        releaseMouse.instructions.clear();
+        releaseMouse.tryCatchBlocks.clear();
+        if (releaseMouse.localVariables != null) {
+            releaseMouse.localVariables.clear();
+        }
+        releaseMouse.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumInputBridge",
+            "releaseMouse",
+            "()V",
+            false
+        ));
+        releaseMouse.instructions.add(new InsnNode(Opcodes.RETURN));
+        releaseMouse.maxStack = 0;
+        releaseMouse.maxLocals = 5;
+
+        applied.add("InputConstants.isKeyDown: browser key-state bridge");
+        applied.add("InputConstants.grabMouse/releaseMouse: browser pointer lock");
 
         return write(node);
     }
