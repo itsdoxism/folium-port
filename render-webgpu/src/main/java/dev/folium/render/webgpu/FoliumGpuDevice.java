@@ -155,13 +155,13 @@ public final class FoliumGpuDevice implements GpuDevice {
     @Override
     public GpuBuffer createBuffer(Supplier label, int usage, long size) {
         ensureOpen();
-        throw unsupported("createBuffer");
+        return new FoliumGpuBuffer(label, usage, size);
     }
 
     @Override
     public GpuBuffer createBuffer(Supplier label, int usage, ByteBuffer initialData) {
         ensureOpen();
-        throw unsupported("createBuffer");
+        return new FoliumGpuBuffer(label, usage, initialData);
     }
 
     @Override
