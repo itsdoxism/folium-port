@@ -47,19 +47,35 @@ import {
     prepareFoliumGraphics,
     renderFoliumBootstrapFrame
 } from "./folium-host.js";
+import {
+    prepareFoliumShaderTranslator,
+    isFoliumShaderTranslatorReady
+} from "./folium-shader-translator.js";
 
 const status = document.getElementById("status");
 
 (async () => {
     try {
-        const host = await prepareFoliumGraphics();
+        const [host] = await Promise.all([
+            prepareFoliumGraphics(),
+            prepareFoliumShaderTranslator()
+        ]);
 
         if (host.deviceReady) {
             renderFoliumBootstrapFrame();
-            status.textContent = "WebGPU preboot OK · starting Java/WASM…";
-            status.dataset.ok = "true";
+
+            if (isFoliumShaderTranslatorReady()) {
+                status.textContent =
+                    "WebGPU + shader translator preboot OK · starting Java/WASM…";
+                status.dataset.ok = "true";
+            } else {
+                status.textContent =
+                    "WebGPU OK · shader translator package missing · starting diagnostics…";
+                status.dataset.ok = "false";
+            }
         } else {
-            status.textContent = "WebGPU unavailable · starting Java/WASM for diagnostics…";
+            status.textContent =
+                "WebGPU unavailable · starting Java/WASM for diagnostics…";
             status.dataset.ok = "false";
         }
 
