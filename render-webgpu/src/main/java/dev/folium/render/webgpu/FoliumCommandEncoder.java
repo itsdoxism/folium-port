@@ -47,7 +47,32 @@ public final class FoliumCommandEncoder implements CommandEncoder {
         GpuTextureView colorTexture,
         Optional<Vector4fc> clearColor
     ) {
-        throw unsupported("createRenderPass(color)");
+        ensureActive();
+        FoliumGpuTextureView view = requireTextureView(colorTexture);
+
+        Vector4fc color = clearColor.orElse(null);
+        int passToken = graphics.beginColorRenderPass(
+            token,
+            view.token(),
+            color != null,
+            color == null ? 0.0f : color.x(),
+            color == null ? 0.0f : color.y(),
+            color == null ? 0.0f : color.z(),
+            color == null ? 0.0f : color.w()
+        );
+
+        FoliumRenderPass pass = new FoliumRenderPass(
+            graphics,
+            passToken,
+            view.getWidth(0),
+            view.getHeight(0)
+        );
+
+        if (label != null) {
+            pass.pushDebugGroup(label);
+        }
+
+        return pass;
     }
 
     @Override
@@ -245,6 +270,15 @@ public final class FoliumCommandEncoder implements CommandEncoder {
             );
         }
         return foliumTexture;
+    }
+
+    private static FoliumGpuTextureView requireTextureView(GpuTextureView view) {
+        if (!(view instanceof FoliumGpuTextureView foliumView)) {
+            throw new IllegalArgumentException(
+                "Folium command encoder received a non-Folium texture view"
+            );
+        }
+        return foliumView;
     }
 
     private static UnsupportedOperationException unsupported(String operation) {
