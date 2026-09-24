@@ -10,6 +10,4 @@ rootProject.name = "folium-port"
 include("platform-api")
 include("runtime-wasm")
 include("render-webgpu")
-include("minecraft-bridge")
 include("patcher")
-include("client-wasm")
