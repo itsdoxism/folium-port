@@ -44,13 +44,10 @@ The original JAR is never modified in place.
 - starts a new raw-include staging snapshot;
 - commits the snapshot on its single successful return.
 
-If loading throws, the previous active snapshot remains intact. A future reload
-starts a fresh staging map.
-
 `loadInclude(Identifier, Resource, ImmutableMap.Builder)`:
 
-- calls `FoliumShaderReloadHook.captureInclude(...)` before Minecraft converts
-  the include to its native shaderc-backed representation.
+- captures raw GLSL include source before Minecraft wraps it in native
+  shaderc-backed state.
 
 ### PreferredGraphicsApi
 
@@ -60,7 +57,46 @@ starts a fresh staging map.
 FoliumWebGpuBackend
 ```
 
-so browser builds do not instantiate the desktop OpenGL or Vulkan backends.
+so the browser build never selects desktop OpenGL or Vulkan.
+
+### RenderSystem
+
+`initBackendSystem()` is completely replaced.
+
+Desktop 26.3 initializes SDL here and returns a clock backed by
+`SDL_GetTicksNS`.
+
+The patched client instead calls:
+
+```text
+FoliumBackendBootstrap.initBackendSystem()
+```
+
+which returns a `TimeSource.NanoTimeSource` backed by:
+
+```text
+FoliumRuntime.platform().clock().nanoTime()
+```
+
+No SDL metadata, hints, initialization, error calls or SDL timer calls remain
+reachable through this method.
+
+## Browser platform bootstrap
+
+`FoliumMain` now installs `BrowserFoliumPlatform` before renderer startup.
+
+The first real platform service is:
+
+```text
+BrowserClockHost
+  nanoTime()          -> performance.now() * 1_000_000
+  currentTimeMillis() -> Date.now()
+```
+
+Graphics is provided by `BrowserGraphicsHost`.
+
+Window, network, storage and audio remain explicit incomplete subsystems so
+they fail visibly rather than silently pretending to work.
 
 ## Mojang JAR signatures
 
@@ -70,39 +106,31 @@ Any bytecode transformation invalidates those signatures, so the patcher:
 
 - removes `META-INF/*.SF`;
 - removes `META-INF/*.RSA`, `*.DSA` and `*.EC`;
-- rewrites the manifest to retain only the normal launch metadata.
-
-Without this step a modified signed JAR can fail verification at class-load
-time.
+- rewrites the manifest to retain normal launch metadata.
 
 ## Drift safety
 
-Every patch targets an exact method name **and JVM descriptor**.
+Every patch targets an exact method name and JVM descriptor.
 
-The patcher refuses to emit an output JAR when:
-
-- a required class is missing;
-- a target method is missing;
-- a method descriptor changes;
-- `ShaderManager.loadConfigs` no longer has the expected single return shape.
-
-This is intentional. A Minecraft update should fail loudly instead of producing
-a subtly corrupted client.
+The patcher refuses to emit an output JAR when a required class/method is
+missing or its expected shape changes.
 
 ## Determinism
 
 JAR entry timestamps are reset while copying, and the patcher prints SHA-256
 hashes for both input and output.
 
-## Next patch
+## Next patch targets
 
-The next target is:
+The next browser-shell targets are the SDL-facing window and event classes:
 
 ```text
-RenderSystem.initBackendSystem()
+Window
+MonitorManager
+SDLEventHandler
+InputConstants
+MouseHandler
 ```
 
-which currently initializes SDL directly.
-
-Folium will replace that method with a browser-safe bridge returning
-Minecraft's `TimeSource.NanoTimeSource` without touching SDL.
+The first useful goal is a browser-backed window shell that can supply canvas
+size, title and pointer-lock state without constructing any SDL window.
