@@ -40,6 +40,10 @@ public final class FoliumPatcherMain {
         "com/mojang/blaze3d/platform/SDLEventHandler.class";
     private static final String INPUT_CONSTANTS =
         "com/mojang/blaze3d/platform/InputConstants.class";
+    private static final String TEXT_INPUT_MANAGER =
+        "com/mojang/blaze3d/platform/TextInputManager.class";
+    private static final String CLIPBOARD_MANAGER =
+        "com/mojang/blaze3d/platform/ClipboardManager.class";
 
     private FoliumPatcherMain() {
     }
@@ -94,6 +98,8 @@ public final class FoliumPatcherMain {
         boolean sawWindow = false;
         boolean sawEventHandler = false;
         boolean sawInputConstants = false;
+        boolean sawTextInputManager = false;
+        boolean sawClipboardManager = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -149,6 +155,12 @@ public final class FoliumPatcherMain {
                 } else if (INPUT_CONSTANTS.equals(entry.getName())) {
                     bytes = patchInputConstants(bytes, applied);
                     sawInputConstants = true;
+                } else if (TEXT_INPUT_MANAGER.equals(entry.getName())) {
+                    bytes = patchTextInputManager(bytes, applied);
+                    sawTextInputManager = true;
+                } else if (CLIPBOARD_MANAGER.equals(entry.getName())) {
+                    bytes = patchClipboardManager(bytes, applied);
+                    sawClipboardManager = true;
                 }
 
                 out.write(bytes);
@@ -165,7 +177,9 @@ public final class FoliumPatcherMain {
             !sawRenderSystem ||
             !sawWindow ||
             !sawEventHandler ||
-            !sawInputConstants
+            !sawInputConstants ||
+            !sawTextInputManager ||
+            !sawClipboardManager
         ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
@@ -298,6 +312,308 @@ public final class FoliumPatcherMain {
         );
 
         return write(node);
+    }
+
+    private static byte[] patchTextInputManager(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode constructor = requireMethod(
+            node,
+            "<init>",
+            "(Lcom/mojang/blaze3d/platform/Window;)V"
+        );
+        constructor.instructions.clear();
+        constructor.tryCatchBlocks.clear();
+        if (constructor.localVariables != null) {
+            constructor.localVariables.clear();
+        }
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "java/lang/Object",
+            "<init>",
+            "()V",
+            false
+        ));
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        constructor.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "window",
+            "Lcom/mojang/blaze3d/platform/Window;"
+        ));
+        constructor.instructions.add(new InsnNode(Opcodes.RETURN));
+        constructor.maxStack = 2;
+        constructor.maxLocals = 2;
+
+        MethodNode setArea = requireMethod(
+            node,
+            "setTextInputArea",
+            "(IIII)V"
+        );
+        setArea.instructions.clear();
+        setArea.tryCatchBlocks.clear();
+        putBooleanFieldOn(
+            setArea.instructions,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "hasTextInputArea",
+            true
+        );
+        putIntFieldFromLocalOn(
+            setArea.instructions,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "areaX",
+            1
+        );
+        putIntFieldFromLocalOn(
+            setArea.instructions,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "areaY",
+            2
+        );
+        putIntFieldFromLocalOn(
+            setArea.instructions,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "areaWidth",
+            3
+        );
+        putIntFieldFromLocalOn(
+            setArea.instructions,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "areaHeight",
+            4
+        );
+        setArea.instructions.add(new InsnNode(Opcodes.RETURN));
+        setArea.maxStack = 2;
+        setArea.maxLocals = 5;
+
+        replaceWithReturnVoid(node, "applyTextInputArea", "()V");
+
+        MethodNode start = requireMethod(
+            node,
+            "startTextInput",
+            "(Ljava/lang/Object;)V"
+        );
+        start.instructions.clear();
+        start.tryCatchBlocks.clear();
+        start.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        start.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        start.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "owner",
+            "Ljava/lang/Object;"
+        ));
+        start.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        start.instructions.add(new InsnNode(Opcodes.ICONST_1));
+        start.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "textInputEnabled",
+            "Z"
+        ));
+        start.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumTextInputBridge",
+            "startTextInput",
+            "()V",
+            false
+        ));
+        start.instructions.add(new InsnNode(Opcodes.RETURN));
+        start.maxStack = 2;
+        start.maxLocals = 2;
+
+        MethodNode stopOwner = requireMethod(
+            node,
+            "stopTextInput",
+            "(Ljava/lang/Object;)V"
+        );
+        stopOwner.instructions.clear();
+        stopOwner.tryCatchBlocks.clear();
+        org.objectweb.asm.tree.LabelNode keep = new org.objectweb.asm.tree.LabelNode();
+        stopOwner.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        stopOwner.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETFIELD,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "owner",
+            "Ljava/lang/Object;"
+        ));
+        stopOwner.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        stopOwner.instructions.add(new org.objectweb.asm.tree.JumpInsnNode(
+            Opcodes.IF_ACMPNE,
+            keep
+        ));
+        stopOwner.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        stopOwner.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKEVIRTUAL,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "stopTextInput",
+            "()V",
+            false
+        ));
+        stopOwner.instructions.add(keep);
+        stopOwner.instructions.add(new InsnNode(Opcodes.RETURN));
+        stopOwner.maxStack = 2;
+        stopOwner.maxLocals = 2;
+
+        MethodNode stop = requireMethod(node, "stopTextInput", "()V");
+        stop.instructions.clear();
+        stop.tryCatchBlocks.clear();
+        stop.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        stop.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+        stop.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "owner",
+            "Ljava/lang/Object;"
+        ));
+        stop.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        stop.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        stop.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "textInputEnabled",
+            "Z"
+        ));
+        stop.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumTextInputBridge",
+            "stopTextInput",
+            "()V",
+            false
+        ));
+        stop.instructions.add(new InsnNode(Opcodes.RETURN));
+        stop.maxStack = 2;
+        stop.maxLocals = 1;
+
+        MethodNode focus = requireMethod(
+            node,
+            "onTextInputFocusChange",
+            "(Ljava/lang/Object;Z)V"
+        );
+        focus.instructions.clear();
+        focus.tryCatchBlocks.clear();
+        org.objectweb.asm.tree.LabelNode unfocused = new org.objectweb.asm.tree.LabelNode();
+        focus.instructions.add(new VarInsnNode(Opcodes.ILOAD, 2));
+        focus.instructions.add(new org.objectweb.asm.tree.JumpInsnNode(
+            Opcodes.IFEQ,
+            unfocused
+        ));
+        focus.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        focus.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        focus.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKEVIRTUAL,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "startTextInput",
+            "(Ljava/lang/Object;)V",
+            false
+        ));
+        focus.instructions.add(new InsnNode(Opcodes.RETURN));
+        focus.instructions.add(unfocused);
+        focus.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        focus.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        focus.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKEVIRTUAL,
+            "com/mojang/blaze3d/platform/TextInputManager",
+            "stopTextInput",
+            "(Ljava/lang/Object;)V",
+            false
+        ));
+        focus.instructions.add(new InsnNode(Opcodes.RETURN));
+        focus.maxStack = 2;
+        focus.maxLocals = 3;
+
+        applied.add("TextInputManager: replace SDL text input with browser composition bridge");
+        return write(node);
+    }
+
+    private static byte[] patchClipboardManager(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode get = requireMethod(
+            node,
+            "getClipboard",
+            "()Ljava/lang/String;"
+        );
+        get.instructions.clear();
+        get.tryCatchBlocks.clear();
+        if (get.localVariables != null) {
+            get.localVariables.clear();
+        }
+        get.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumClipboardBridge",
+            "getClipboard",
+            "()Ljava/lang/String;",
+            false
+        ));
+        get.instructions.add(new InsnNode(Opcodes.ARETURN));
+        get.maxStack = 1;
+        get.maxLocals = 1;
+
+        MethodNode set = requireMethod(
+            node,
+            "setClipboard",
+            "(Ljava/lang/String;)V"
+        );
+        set.instructions.clear();
+        set.tryCatchBlocks.clear();
+        if (set.localVariables != null) {
+            set.localVariables.clear();
+        }
+        set.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        set.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumClipboardBridge",
+            "setClipboard",
+            "(Ljava/lang/String;)V",
+            false
+        ));
+        set.instructions.add(new InsnNode(Opcodes.RETURN));
+        set.maxStack = 1;
+        set.maxLocals = 2;
+
+        applied.add("ClipboardManager: replace SDL clipboard with browser cache bridge");
+        return write(node);
+    }
+
+    private static void putBooleanFieldOn(
+        InsnList code,
+        String owner,
+        String field,
+        boolean value
+    ) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new InsnNode(value ? Opcodes.ICONST_1 : Opcodes.ICONST_0));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            owner,
+            field,
+            "Z"
+        ));
+    }
+
+    private static void putIntFieldFromLocalOn(
+        InsnList code,
+        String owner,
+        String field,
+        int local
+    ) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ILOAD, local));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            owner,
+            field,
+            "I"
+        ));
     }
 
     private static byte[] patchSdlEventHandler(
