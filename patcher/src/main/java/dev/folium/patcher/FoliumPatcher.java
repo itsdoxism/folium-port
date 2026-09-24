@@ -15,8 +15,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -59,6 +59,7 @@ public final class FoliumPatcher {
         }
 
         Set<String> patched = new HashSet<>();
+        Set<String> strippedSignatures = new HashSet<>();
 
         try (
             InputStream rawIn = Files.newInputStream(input);
@@ -69,16 +70,26 @@ public final class FoliumPatcher {
             ZipEntry entry;
 
             while ((entry = zin.getNextEntry()) != null) {
-                ZipEntry outEntry = new ZipEntry(entry.getName());
+                String entryName = entry.getName();
+
+                // The official client JAR is signed. Any bytecode transform
+                // invalidates those signatures, so generated Folium build
+                // artifacts must not retain stale signature blocks.
+                if (isJarSignature(entryName)) {
+                    strippedSignatures.add(entryName);
+                    continue;
+                }
+
+                ZipEntry outEntry = new ZipEntry(entryName);
                 outEntry.setTime(entry.getTime());
                 zout.putNextEntry(outEntry);
 
                 byte[] data = zin.readAllBytes();
 
-                if (PREFERRED_GRAPHICS.equals(entry.getName())) {
+                if (PREFERRED_GRAPHICS.equals(entryName)) {
                     data = patchPreferredGraphicsApi(data);
                     patched.add(PREFERRED_GRAPHICS);
-                } else if (RENDER_SYSTEM.equals(entry.getName())) {
+                } else if (RENDER_SYSTEM.equals(entryName)) {
                     data = patchRenderSystem(data);
                     patched.add(RENDER_SYSTEM);
                 }
@@ -102,6 +113,23 @@ public final class FoliumPatcher {
         System.out.println("Output: " + output);
         System.out.println("  ✓ PreferredGraphicsApi.getBackendsToTry");
         System.out.println("  ✓ RenderSystem.initBackendSystem");
+
+        for (String signature : strippedSignatures) {
+            System.out.println("  ✓ stripped stale JAR signature: " + signature);
+        }
+    }
+
+    private static boolean isJarSignature(String entryName) {
+        String normalized = entryName.toUpperCase(Locale.ROOT);
+
+        if (!normalized.startsWith("META-INF/")) {
+            return false;
+        }
+
+        return normalized.endsWith(".SF")
+            || normalized.endsWith(".RSA")
+            || normalized.endsWith(".DSA")
+            || normalized.endsWith(".EC");
     }
 
     private static byte[] patchPreferredGraphicsApi(byte[] original) {
