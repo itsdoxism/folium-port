@@ -149,7 +149,26 @@ public final class FoliumCommandEncoder implements CommandEncoder {
 
     @Override
     public void writeToBuffer(GpuBufferSlice destination, ByteBuffer data) {
-        throw unsupported("writeToBuffer");
+        ensureActive();
+
+        if (!(destination.buffer() instanceof FoliumGpuBuffer buffer)) {
+            throw new IllegalArgumentException(
+                "Folium command encoder received a non-Folium destination buffer"
+            );
+        }
+
+        if (data == null) {
+            throw new NullPointerException("data");
+        }
+
+        ByteBuffer view = data.slice();
+        if (view.remaining() > destination.length()) {
+            throw new IllegalArgumentException(
+                "Source data is larger than the destination buffer slice"
+            );
+        }
+
+        graphics.writeBuffer(buffer.token(), destination.offset(), view);
     }
 
     @Override
