@@ -35,6 +35,9 @@ public final class FoliumPatcher {
     private static final String RENDER_SYSTEM =
         "com/mojang/blaze3d/systems/RenderSystem.class";
 
+    private static final String NATIVE_LIBRARIES =
+        "com/mojang/blaze3d/platform/NativeLibrariesBootstrap.class";
+
     private FoliumPatcher() {
     }
 
@@ -92,6 +95,9 @@ public final class FoliumPatcher {
                 } else if (RENDER_SYSTEM.equals(entryName)) {
                     data = patchRenderSystem(data);
                     patched.add(RENDER_SYSTEM);
+                } else if (NATIVE_LIBRARIES.equals(entryName)) {
+                    data = patchNativeLibrariesBootstrap(data);
+                    patched.add(NATIVE_LIBRARIES);
                 }
 
                 zout.write(data);
@@ -102,7 +108,11 @@ public final class FoliumPatcher {
             throw failure;
         }
 
-        if (!patched.contains(PREFERRED_GRAPHICS) || !patched.contains(RENDER_SYSTEM)) {
+        if (
+            !patched.contains(PREFERRED_GRAPHICS)
+                || !patched.contains(RENDER_SYSTEM)
+                || !patched.contains(NATIVE_LIBRARIES)
+        ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
                 "Expected Minecraft 26.3 classes were not found; refusing to emit a partial patch"
@@ -113,6 +123,8 @@ public final class FoliumPatcher {
         System.out.println("Output: " + output);
         System.out.println("  ✓ PreferredGraphicsApi.getBackendsToTry");
         System.out.println("  ✓ RenderSystem.initBackendSystem");
+        System.out.println("  ✓ NativeLibrariesBootstrap.loadLibraries");
+        System.out.println("  ✓ NativeLibrariesBootstrap.isVulkanLoaderAvailable");
 
         for (String signature : strippedSignatures) {
             System.out.println("  ✓ stripped stale JAR signature: " + signature);
@@ -168,6 +180,33 @@ public final class FoliumPatcher {
 
         method.maxStack = 4;
         method.maxLocals = 1;
+
+        return write(node);
+    }
+
+    private static byte[] patchNativeLibrariesBootstrap(byte[] original) {
+        ClassNode node = read(original);
+
+        MethodNode loadLibraries = requireMethod(
+            node,
+            "loadLibraries",
+            "()V"
+        );
+        clearMethod(loadLibraries);
+        loadLibraries.instructions.add(new InsnNode(Opcodes.RETURN));
+        loadLibraries.maxStack = 0;
+        loadLibraries.maxLocals = 0;
+
+        MethodNode vulkanAvailable = requireMethod(
+            node,
+            "isVulkanLoaderAvailable",
+            "()Z"
+        );
+        clearMethod(vulkanAvailable);
+        vulkanAvailable.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        vulkanAvailable.instructions.add(new InsnNode(Opcodes.IRETURN));
+        vulkanAvailable.maxStack = 1;
+        vulkanAvailable.maxLocals = 0;
 
         return write(node);
     }
