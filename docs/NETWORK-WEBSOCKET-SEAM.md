@@ -1,107 +1,54 @@
 # WebSocket network seam
 
-Minecraft 26.3 packet codecs are already separated from TCP framing.
+Folium preserves Minecraft 26.3 packet/protocol semantics while replacing the socket transport.
 
-The important contract is:
+## Transport stack
 
-```text
-ProtocolInfo.codec()
-    -> StreamCodec<ByteBuf, Packet<?>>
-```
-
-`PacketEncoder` calls that codec directly, while VarInt frame encoding is a different Netty pipeline layer.
-
-Folium therefore preserves Minecraft's existing packet codec and replaces only the transport/framing boundary.
-
-## Browser transport
-
-`BrowserNetworkHost` uses the browser `WebSocket` API in binary mode.
-
-Each WebSocket message contains exactly one Minecraft **protocol packet payload**:
+The browser session now owns:
 
 ```text
-packet id + packet fields
+Packet<?> 
+  -> ProtocolInfo.codec()
+  -> BundlerInfo unbundle/bundle semantics
+  -> optional compression envelope
+  -> outer VarInt TCP frame
+  -> optional AES/CFB8 stream encryption
+  -> WebSocket raw byte tunnel
 ```
 
-It does **not** contain the normal TCP VarInt packet-length prefix.
+Inbound reverses that order.
 
-## Gateway contract
+## Packet bundling
 
-Outbound:
+Minecraft exposes bundling independently from Netty through:
 
 ```text
-Folium packet payload
-      |
-      v
-WebSocket binary message
-      |
-      v
-gateway
-      |
-      +-- prepend Minecraft VarInt frame length
-      |
-      v
-normal Minecraft TCP backend
+ProtocolInfo.bundlerInfo()
 ```
 
-Inbound:
+Folium reuses that object directly.
+
+Outbound bundle packets are expanded with:
 
 ```text
-Minecraft TCP stream
-      |
-      v
-gateway VarInt frame decoder
-      |
-      v
-one packet payload
-      |
-      v
-one WebSocket binary message
-      |
-      v
-Folium ProtocolInfo.codec().decode(...)
+BundlerInfo.unbundlePacket(packet, consumer)
 ```
 
-This keeps compression/encryption/framing concerns at the gateway boundary while Folium works with complete packet payloads.
+which yields the normal delimiter/subpacket sequence expected on the wire.
 
-## Codec reuse
-
-`FoliumPacketCodec` uses:
+Inbound decoded packets are fed through:
 
 ```text
-ProtocolInfo.codec().encode(ByteBuf, Packet)
-ProtocolInfo.codec().decode(ByteBuf)
+BundlerInfo.startPacketBundling(packet)
+BundlerInfo.Bundler.addPacket(packet)
 ```
 
-with an in-memory Netty `ByteBuf`.
+until Minecraft's bundler returns the completed logical bundle packet.
 
-This intentionally keeps Minecraft's generated/registered packet codecs unchanged.
+This reproduces the behavior previously provided by `PacketBundleUnpacker` and `PacketBundlePacker` without using Netty channel handlers.
 
-## Session state
+Terminal packets are rejected if they appear inside an active bundle, matching Minecraft's original guard behavior.
 
-`FoliumNetworkSession` stores independent inbound and outbound `ProtocolInfo` references.
+## Gateway
 
-That mirrors Minecraft's protocol switching during:
-
-```text
-handshake
-status/login
-configuration
-play
-```
-
-without depending on a Netty `ChannelPipeline`.
-
-## Important remaining work
-
-`Connection` still owns channel/event-loop state and protocol swaps. It has not yet been patched onto `FoliumNetworkSession`.
-
-The next milestone is a browser-specific `Connection` transport bridge that replaces:
-
-```text
-channel.write / writeAndFlush
-channel.isOpen
-ChannelPipeline protocol reconfiguration
-```
-
-with session operations while keeping Minecraft's listeners, pending packet queue and protocol transition semantics.
+The gateway remains a raw TCP byte tunnel and does not know about packet bundling, compression, encryption or protocol state.
