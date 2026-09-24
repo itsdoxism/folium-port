@@ -12,18 +12,18 @@ const foliumHostState = {
 const resources = new Map();
 let nextToken = 1;
 
-function storeResource(value) {
+function storeResource(kind, value) {
     const token = nextToken++;
-    resources.set(token, value);
+    resources.set(token, { kind, value });
     return token;
 }
 
 function requireResource(token, kind) {
-    const value = resources.get(token);
-    if (!value || value.kind !== kind) {
+    const entry = resources.get(token);
+    if (!entry || entry.kind !== kind) {
         throw new Error(`Invalid Folium ${kind} token: ${token}`);
     }
-    return value.value;
+    return entry.value;
 }
 
 function toWebGpuFormat(format) {
@@ -48,12 +48,6 @@ function toWebGpuFormat(format) {
 }
 
 function toWebGpuTextureUsage(renderPearlUsage) {
-    /*
-     * RenderPearl's usage bit values are intentionally not hard-coded here
-     * yet. The first port stage allocates a safe superset for resources that
-     * reach this bridge. Tight usage translation can follow once all constants
-     * are mapped from 26.3.
-     */
     return GPUTextureUsage.COPY_SRC |
         GPUTextureUsage.COPY_DST |
         GPUTextureUsage.TEXTURE_BINDING |
@@ -80,13 +74,27 @@ globalThis.__foliumWebGpuBridge = {
             usage: toWebGpuTextureUsage(usage)
         });
 
-        return storeResource({ kind: "texture", value: texture });
+        return storeResource("texture", texture);
     },
 
     destroyTexture(textureToken) {
         const texture = requireResource(textureToken, "texture");
         texture.destroy();
         resources.delete(textureToken);
+    },
+
+    createTextureView(textureToken, baseMipLevel, mipLevels) {
+        const texture = requireResource(textureToken, "texture");
+        const view = texture.createView({
+            baseMipLevel,
+            mipLevelCount: mipLevels
+        });
+        return storeResource("textureView", view);
+    },
+
+    releaseTextureView(textureViewToken) {
+        requireResource(textureViewToken, "textureView");
+        resources.delete(textureViewToken);
     },
 
     createCommandEncoder() {
@@ -98,7 +106,58 @@ globalThis.__foliumWebGpuBridge = {
             label: "Folium RenderPearl encoder"
         });
 
-        return storeResource({ kind: "encoder", value: encoder });
+        return storeResource("encoder", encoder);
+    },
+
+    beginColorRenderPass(
+        encoderToken,
+        textureViewToken,
+        clear,
+        red,
+        green,
+        blue,
+        alpha
+    ) {
+        const encoder = requireResource(encoderToken, "encoder");
+        const view = requireResource(textureViewToken, "textureView");
+
+        const attachment = {
+            view,
+            loadOp: clear ? "clear" : "load",
+            storeOp: "store"
+        };
+
+        if (clear) {
+            attachment.clearValue = { r: red, g: green, b: blue, a: alpha };
+        }
+
+        const pass = encoder.beginRenderPass({
+            label: "Folium RenderPearl render pass",
+            colorAttachments: [attachment]
+        });
+
+        return storeResource("renderPass", pass);
+    },
+
+    pushRenderPassDebugGroup(renderPassToken, label) {
+        const pass = requireResource(renderPassToken, "renderPass");
+        pass.pushDebugGroup(label || "Folium");
+    },
+
+    popRenderPassDebugGroup(renderPassToken) {
+        const pass = requireResource(renderPassToken, "renderPass");
+        pass.popDebugGroup();
+    },
+
+    setRenderPassScissor(renderPassToken, x, y, width, height) {
+        const pass = requireResource(renderPassToken, "renderPass");
+        pass.setScissorRect(x, y, width, height);
+    },
+
+    endRenderPass(renderPassToken) {
+        const pass = requireResource(renderPassToken, "renderPass");
+        pass.end();
+        resources.delete(renderPassToken);
     },
 
     clearColorTexture(encoderToken, textureToken, red, green, blue, alpha) {
