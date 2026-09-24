@@ -1,12 +1,25 @@
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-pub fn spv_to_wgsl(bytes: &[u8]) -> Result<String, JsValue> {
-    let options = naga::front::spv::Options::default();
+fn shader_stage(stage: &str) -> Result<naga::ShaderStage, JsValue> {
+    match stage {
+        "vertex" => Ok(naga::ShaderStage::Vertex),
+        "fragment" => Ok(naga::ShaderStage::Fragment),
+        other => Err(JsValue::from_str(&format!(
+            "Folium shader stage is unsupported: {other}"
+        ))),
+    }
+}
 
-    let module = naga::front::spv::parse_u8_slice(bytes, &options)
-        .map_err(|error| JsValue::from_str(&format!(
-            "Folium SPIR-V parse failed: {error}"
+#[wasm_bindgen]
+pub fn glsl_to_wgsl(source: &str, stage: &str) -> Result<String, JsValue> {
+    let stage = shader_stage(stage)?;
+    let mut frontend = naga::front::glsl::Frontend::default();
+    let options = naga::front::glsl::Options::from(stage);
+
+    let module = frontend
+        .parse(&options, source)
+        .map_err(|errors| JsValue::from_str(&format!(
+            "Folium GLSL parse failed: {errors:?}"
         )))?;
 
     let mut validator = naga::valid::Validator::new(
@@ -14,7 +27,8 @@ pub fn spv_to_wgsl(bytes: &[u8]) -> Result<String, JsValue> {
         naga::valid::Capabilities::all(),
     );
 
-    let info = validator.validate(&module)
+    let info = validator
+        .validate(&module)
         .map_err(|error| JsValue::from_str(&format!(
             "Folium shader validation failed: {error}"
         )))?;
