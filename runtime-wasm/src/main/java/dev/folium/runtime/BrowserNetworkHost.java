@@ -24,6 +24,11 @@ public final class BrowserNetworkHost implements NetworkHost {
         }
 
         @Override
+        public boolean isClosed() {
+            return closed || socketClosed(token);
+        }
+
+        @Override
         public void send(byte[] payload) {
             if (closed) {
                 throw new IllegalStateException("Folium WebSocket is closed");
@@ -112,6 +117,13 @@ public final class BrowserNetworkHost implements NetworkHost {
         return !!entry?.open && entry.socket?.readyState === WebSocket.OPEN;
     """)
     private static native boolean socketOpen(int token);
+
+    @JSBody(params = {"token"}, script = """
+        const entry = globalThis.__foliumSockets?.sockets?.get(token);
+        return !entry || !!entry.closed ||
+            entry.socket?.readyState === WebSocket.CLOSED;
+    """)
+    private static native boolean socketClosed(int token);
 
     @JSBody(params = {"token", "payload"}, script = """
         const entry = globalThis.__foliumSockets?.sockets?.get(token);
