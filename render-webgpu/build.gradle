@@ -16,6 +16,7 @@ if (minecraftJar.isPresent()) {
         compileOnly files(minecraftJar.get())
         compileOnly "org.joml:joml:1.10.9"
         compileOnly "it.unimi.dsi:fastutil:8.5.19"
+        compileOnly "org.lwjgl:lwjgl:3.4.3"
     }
 } else {
     tasks.withType(JavaCompile).configureEach {
