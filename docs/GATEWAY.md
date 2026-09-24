@@ -34,27 +34,42 @@ In production, reverse-proxy that path from the same origin that serves Folium.
 
 ## Framing
 
-Folium sends one unframed Minecraft protocol packet payload per WebSocket binary message.
+The gateway only owns the **outer Minecraft TCP packet length**.
 
-The gateway converts:
+Outbound:
 
 ```text
 WebSocket message
-    -> VarInt payload length
-    -> payload bytes
+    -> VarInt frame length
+    -> message bytes
     -> Minecraft TCP stream
 ```
 
-and reverses that process inbound.
+Inbound reverses that process.
+
+The gateway does not parse packet IDs and does not need to know the current Minecraft protocol state.
+
+## Compression boundary
+
+When Minecraft login enables compression, the WebSocket message itself becomes Minecraft's compression envelope:
+
+```text
+VarInt uncompressedLength
+compressed-or-raw packet payload
+```
+
+Folium handles that envelope in `FoliumNetworkSession`.
+
+The gateway still sees only opaque message bytes and continues to add/remove the outer TCP frame length.
+
+This keeps compression negotiation synchronized with the patched Minecraft `Connection.setupCompression(int, boolean)` method without making the gateway protocol-aware.
 
 ## Packet size guard
 
-The current maximum framed packet size is 8 MiB.
+The current maximum outer framed message size is 8 MiB.
 
-## Compression and encryption
+## Encryption
 
-The current gateway only understands the normal pre-compression VarInt packet framing.
+Online-mode login can negotiate stream encryption. That transition is not implemented yet.
 
-Minecraft login can negotiate compression, and online-mode login can negotiate encryption. Those transitions are not implemented yet.
-
-A real login smoke test therefore depends on adding compression handling and deciding where encryption terminates.
+The next networking boundary is deciding whether encryption terminates in the browser or in a trusted gateway-side login bridge.
