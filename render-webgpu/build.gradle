@@ -13,6 +13,7 @@ def minecraftJar = providers.gradleProperty("minecraftJar")
 
 if (minecraftJar.isPresent()) {
     dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"
         compileOnly files(minecraftJar.get())
         compileOnly "org.joml:joml:1.10.9"
         compileOnly "it.unimi.dsi:fastutil:8.5.19"
@@ -30,4 +31,9 @@ if (minecraftJar.isPresent()) {
             println "or set FOLIUM_MINECRAFT_JAR."
         }
     }
+}
+
+
+tasks.named("test") {
+    useJUnitPlatform()
 }
