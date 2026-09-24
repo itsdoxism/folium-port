@@ -40,28 +40,18 @@ public final class BrowserGraphicsHost implements GraphicsHost {
     );
 
     @Override
-    @JSBody(
-        params = {"textureToken"},
-        script = "globalThis.__foliumWebGpuBridge.destroyTexture(textureToken);"
-    )
+    @JSBody(params = {"textureToken"}, script = "globalThis.__foliumWebGpuBridge.destroyTexture(textureToken);")
     public native void destroyTexture(int textureToken);
 
     @Override
     @JSBody(
         params = {"textureToken", "baseMipLevel", "mipLevels"},
-        script = """
-            return globalThis.__foliumWebGpuBridge.createTextureView(
-                textureToken, baseMipLevel, mipLevels
-            );
-        """
+        script = "return globalThis.__foliumWebGpuBridge.createTextureView(textureToken, baseMipLevel, mipLevels);"
     )
     public native int createTextureView(int textureToken, int baseMipLevel, int mipLevels);
 
     @Override
-    @JSBody(
-        params = {"textureViewToken"},
-        script = "globalThis.__foliumWebGpuBridge.releaseTextureView(textureViewToken);"
-    )
+    @JSBody(params = {"textureViewToken"}, script = "globalThis.__foliumWebGpuBridge.releaseTextureView(textureViewToken);")
     public native void releaseTextureView(int textureViewToken);
 
     @Override
@@ -70,10 +60,7 @@ public final class BrowserGraphicsHost implements GraphicsHost {
 
     @Override
     @JSBody(
-        params = {
-            "encoderToken", "textureViewToken", "clear",
-            "red", "green", "blue", "alpha"
-        },
+        params = {"encoderToken", "textureViewToken", "clear", "red", "green", "blue", "alpha"},
         script = """
             return globalThis.__foliumWebGpuBridge.beginColorRenderPass(
                 encoderToken, textureViewToken, clear, red, green, blue, alpha
@@ -91,41 +78,57 @@ public final class BrowserGraphicsHost implements GraphicsHost {
     );
 
     @Override
-    @JSBody(
-        params = {"renderPassToken", "label"},
-        script = "globalThis.__foliumWebGpuBridge.pushRenderPassDebugGroup(renderPassToken, label);"
-    )
+    @JSBody(params = {"renderPassToken", "label"}, script = "globalThis.__foliumWebGpuBridge.pushRenderPassDebugGroup(renderPassToken, label);")
     public native void pushRenderPassDebugGroup(int renderPassToken, String label);
 
     @Override
-    @JSBody(
-        params = {"renderPassToken"},
-        script = "globalThis.__foliumWebGpuBridge.popRenderPassDebugGroup(renderPassToken);"
-    )
+    @JSBody(params = {"renderPassToken"}, script = "globalThis.__foliumWebGpuBridge.popRenderPassDebugGroup(renderPassToken);")
     public native void popRenderPassDebugGroup(int renderPassToken);
 
     @Override
     @JSBody(
         params = {"renderPassToken", "x", "y", "width", "height"},
-        script = """
-            globalThis.__foliumWebGpuBridge.setRenderPassScissor(
-                renderPassToken, x, y, width, height
-            );
-        """
+        script = "globalThis.__foliumWebGpuBridge.setRenderPassScissor(renderPassToken, x, y, width, height);"
     )
-    public native void setRenderPassScissor(
-        int renderPassToken,
-        int x,
-        int y,
-        int width,
-        int height
-    );
+    public native void setRenderPassScissor(int renderPassToken, int x, int y, int width, int height);
 
     @Override
     @JSBody(
-        params = {"renderPassToken"},
-        script = "globalThis.__foliumWebGpuBridge.endRenderPass(renderPassToken);"
+        params = {"colorFormat"},
+        script = "return globalThis.__foliumWebGpuBridge.createBootstrapTrianglePipeline(colorFormat);"
     )
+    public native int createBootstrapTrianglePipeline(String colorFormat);
+
+    @Override
+    @JSBody(params = {"pipelineToken"}, script = "globalThis.__foliumWebGpuBridge.destroyPipeline(pipelineToken);")
+    public native void destroyPipeline(int pipelineToken);
+
+    @Override
+    @JSBody(
+        params = {"renderPassToken", "pipelineToken"},
+        script = "globalThis.__foliumWebGpuBridge.setRenderPassPipeline(renderPassToken, pipelineToken);"
+    )
+    public native void setRenderPassPipeline(int renderPassToken, int pipelineToken);
+
+    @Override
+    @JSBody(
+        params = {"renderPassToken", "vertexCount", "instanceCount", "firstVertex", "firstInstance"},
+        script = """
+            globalThis.__foliumWebGpuBridge.drawRenderPass(
+                renderPassToken, vertexCount, instanceCount, firstVertex, firstInstance
+            );
+        """
+    )
+    public native void drawRenderPass(
+        int renderPassToken,
+        int vertexCount,
+        int instanceCount,
+        int firstVertex,
+        int firstInstance
+    );
+
+    @Override
+    @JSBody(params = {"renderPassToken"}, script = "globalThis.__foliumWebGpuBridge.endRenderPass(renderPassToken);")
     public native void endRenderPass(int renderPassToken);
 
     @Override
@@ -147,9 +150,6 @@ public final class BrowserGraphicsHost implements GraphicsHost {
     );
 
     @Override
-    @JSBody(
-        params = {"encoderToken"},
-        script = "globalThis.__foliumWebGpuBridge.submitCommandEncoder(encoderToken);"
-    )
+    @JSBody(params = {"encoderToken"}, script = "globalThis.__foliumWebGpuBridge.submitCommandEncoder(encoderToken);")
     public native void submitCommandEncoder(int encoderToken);
 }
