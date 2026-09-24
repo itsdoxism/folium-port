@@ -1,18 +1,21 @@
 package dev.folium.platform;
 
 /**
- * The narrow host boundary between portable client logic and the environment
- * that actually provides windowing, input, networking, storage and audio.
+ * Narrow host boundary between portable client logic and the browser.
  *
- * Minecraft classes should eventually depend on adapters around this API
- * instead of directly touching desktop-native APIs.
+ * Minecraft-facing adapters should depend on this API instead of directly
+ * touching desktop-native APIs.
  */
 public interface FoliumPlatform {
     WindowHost window();
+
+    InputHost input();
 
     NetworkHost network();
 
     StorageHost storage();
 
     AudioHost audio();
+
+    ClockHost clock();
 }
