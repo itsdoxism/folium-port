@@ -6,7 +6,6 @@ import java.util.OptionalLong;
 
 public final class FoliumGpuQueryPool implements GpuQueryPool {
     private final int size;
-    private boolean closed;
 
     public FoliumGpuQueryPool(int size) {
         if (size < 0) {
@@ -39,15 +38,7 @@ public final class FoliumGpuQueryPool implements GpuQueryPool {
         return values;
     }
 
-    @Override
-    public void close() {
-        closed = true;
-    }
-
     private void checkIndex(int index) {
-        if (closed) {
-            throw new IllegalStateException("FoliumGpuQueryPool is closed");
-        }
         if (index < 0 || index >= size) {
             throw new IndexOutOfBoundsException(index);
         }
