@@ -51,6 +51,23 @@ public final class FoliumCompiledRenderPipeline implements CompiledRenderPipelin
         );
     }
 
+    public static FoliumCompiledRenderPipeline fromMinecraftShaders(
+        GraphicsHost graphics,
+        com.mojang.renderpearl.api.pipeline.RenderPipeline pipeline,
+        String vertexGlsl,
+        String fragmentGlsl
+    ) {
+        FoliumPipelineState state = FoliumPipelineStateMapper.map(pipeline);
+        return new FoliumCompiledRenderPipeline(
+            graphics,
+            graphics.createPipelineFromGlsl(
+                FoliumPipelineStateJson.encode(state),
+                vertexGlsl,
+                fragmentGlsl
+            )
+        );
+    }
+
     @Override
     public boolean isClosed() {
         return closed;
