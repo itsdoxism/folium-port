@@ -1,39 +1,49 @@
 # Folium client patcher
 
-Folium transforms a local official Minecraft client JAR; the original JAR is never stored in the repository or modified in place.
+Folium transforms a local official Minecraft client JAR into a browser-oriented build without storing or modifying the original JAR in place.
 
 ## Current transformed areas
 
-The 26.3 browser patch set now covers:
-
 ```text
-ShaderManager        -> raw shader include capture
-PreferredGraphicsApi -> FoliumWebGpuBackend only
-RenderSystem         -> browser clock, no SDL init
-Window               -> browser canvas shell
-SDLEventHandler      -> DOM event queue
-InputConstants       -> browser key state / pointer lock
-TextInputManager     -> hidden textarea / composition
-ClipboardManager     -> browser clipboard cache
-Monitor              -> synthetic browser display
-MonitorManager       -> one synthetic monitor
-VideoMode            -> remove SDL_DisplayMode constructor
+ShaderManager              -> raw shader include capture
+PreferredGraphicsApi       -> FoliumWebGpuBackend only
+RenderSystem               -> browser clock, no SDL init
+Window                     -> browser canvas shell
+SDLEventHandler            -> DOM event queue
+InputConstants             -> browser key state / pointer lock
+TextInputManager           -> hidden textarea / composition
+ClipboardManager           -> browser clipboard cache
+Monitor / MonitorManager   -> synthetic browser display
+VideoMode                  -> remove SDL_DisplayMode constructor
+NativeLibrariesBootstrap   -> no native-library loading
+Blaze3D.getTime            -> browser clock
+CursorType                 -> browser-safe opaque cursors
+InputQuirks                -> no SDL modifier polling
+MouseHandler.resync        -> browser pointer state
 ```
 
 ## Verification
 
-Run:
+Run the exact-descriptor verifier before patching:
 
 ```bash
 python tools/verify-patch-targets.py /path/to/minecraft-client-26.3.jar
 ```
 
-Every patch target is matched by exact JVM method descriptor. Target drift aborts the patch instead of emitting a partially compatible browser client.
+Target drift aborts patch generation rather than producing a partially compatible client.
 
 ## Signed JAR handling
 
-The official client JAR is signed. Since bytecode transformation invalidates those signatures, Folium strips signature metadata and emits a clean launch manifest in the patched local artifact.
+The official client JAR is signed. Folium removes invalidated signature metadata and emits a clean local launch manifest after transformation.
 
-## Next audit
+## Remaining utility cleanup
 
-With window/input/display SDL paths redirected, the next step is to scan the transformed-reachable platform graph for remaining direct `org/lwjgl/sdl` references and patch only those still reachable from normal browser startup.
+The main SDL shell is now redirected. Remaining browser-utility targets include:
+
+```text
+Blaze3D.openUri
+MessageBox
+MacosUtil
+```
+
+These are lower risk than the earlier boot blockers and can be replaced with browser-native behavior in a focused utility patch pass.
