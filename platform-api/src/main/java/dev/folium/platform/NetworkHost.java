@@ -6,6 +6,8 @@ public interface NetworkHost {
     interface Connection {
         boolean isOpen();
 
+        boolean isClosed();
+
         void send(byte[] payload);
 
         byte[] poll();
