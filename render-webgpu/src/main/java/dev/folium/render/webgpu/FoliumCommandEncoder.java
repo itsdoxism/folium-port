@@ -44,7 +44,7 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     @Override
     public RenderPass createRenderPass(
         Supplier<String> label,
-        GpuTextureView colorAttachment,
+        GpuTextureView colorTexture,
         Optional<Vector4fc> clearColor
     ) {
         throw unsupported("createRenderPass(color)");
@@ -53,9 +53,9 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     @Override
     public RenderPass createRenderPass(
         Supplier<String> label,
-        GpuTextureView colorAttachment,
+        GpuTextureView colorTexture,
         Optional<Vector4fc> clearColor,
-        GpuTextureView depthAttachment,
+        GpuTextureView depthTexture,
         OptionalDouble clearDepth
     ) {
         throw unsupported("createRenderPass(color, depth)");
@@ -64,9 +64,9 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     @Override
     public RenderPass createRenderPass(
         Supplier<String> label,
-        GpuTextureView colorAttachment,
+        GpuTextureView colorTexture,
         Optional<Vector4fc> clearColor,
-        GpuTextureView depthAttachment,
+        GpuTextureView depthTexture,
         OptionalDouble clearDepth,
         RenderPass.RenderArea renderArea
     ) {
@@ -79,25 +79,25 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     }
 
     @Override
-    public void clearColorTexture(GpuTexture texture, Vector4fc color) {
+    public void clearColorTexture(GpuTexture colorTexture, Vector4fc clearColor) {
         ensureActive();
-        FoliumGpuTexture foliumTexture = requireTexture(texture);
+        FoliumGpuTexture texture = requireTexture(colorTexture);
         graphics.clearColorTexture(
             token,
-            foliumTexture.token(),
-            color.x(),
-            color.y(),
-            color.z(),
-            color.w()
+            texture.token(),
+            clearColor.x(),
+            clearColor.y(),
+            clearColor.z(),
+            clearColor.w()
         );
     }
 
     @Override
     public void clearColorAndDepthTextures(
         GpuTexture colorTexture,
-        Vector4fc color,
+        Vector4fc clearColor,
         GpuTexture depthTexture,
-        double depth
+        double clearDepth
     ) {
         throw unsupported("clearColorAndDepthTextures");
     }
@@ -105,57 +105,58 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     @Override
     public void clearColorAndDepthTextures(
         GpuTexture colorTexture,
-        Vector4fc color,
+        Vector4fc clearColor,
         GpuTexture depthTexture,
-        double depth,
-        int x,
-        int y,
-        int width,
-        int height,
-        int layer
+        double clearDepth,
+        int regionX,
+        int regionY,
+        int regionWidth,
+        int regionHeight,
+        int mipLevel
     ) {
         throw unsupported("clearColorAndDepthTextures(region)");
     }
 
     @Override
-    public void clearDepthTexture(GpuTexture texture, double depth) {
+    public void clearDepthTexture(GpuTexture depthTexture, double clearDepth) {
         throw unsupported("clearDepthTexture");
     }
 
     @Override
-    public void writeToBuffer(GpuBufferSlice slice, ByteBuffer data) {
+    public void writeToBuffer(GpuBufferSlice destination, ByteBuffer data) {
         throw unsupported("writeToBuffer");
     }
 
     @Override
-    public void copyToBuffer(GpuBufferSlice source, GpuBufferSlice destination) {
+    public void copyToBuffer(GpuBufferSlice source, GpuBufferSlice target) {
         throw unsupported("copyToBuffer");
     }
 
     @Override
-    public void writeToTexture(GpuTexture texture, NativeImage image) {
+    public void writeToTexture(GpuTexture destination, NativeImage source) {
         throw unsupported("writeToTexture(image)");
     }
 
     @Override
     public void writeToTexture(
-        GpuTexture texture,
-        NativeImage image,
+        GpuTexture destination,
+        NativeImage source,
         int mipLevel,
-        int x,
-        int y,
-        int layer
+        int depthOrLayer,
+        int destX,
+        int destY
     ) {
         throw unsupported("writeToTexture(image, region)");
     }
 
     @Override
     public void writeToTexture(
-        GpuTexture texture,
-        ByteBuffer data,
+        GpuTexture destination,
+        ByteBuffer source,
         int mipLevel,
-        int x,
-        int y,
+        int depthOrLayer,
+        int destX,
+        int destY,
         int width,
         int height
     ) {
@@ -165,17 +166,17 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     @Override
     public void copyBufferToTexture(
         GpuBufferSlice source,
-        int bytesPerRow,
-        int rowsPerImage,
-        int sourceOffset,
-        int sourceLayer,
+        int sourceX,
+        int sourceY,
+        int sourceWidth,
+        int sourceHeight,
         GpuTexture destination,
+        int destinationX,
+        int destinationY,
+        int copyWidth,
+        int copyHeight,
         int mipLevel,
-        int x,
-        int y,
-        int width,
-        int height,
-        int destinationLayer
+        int arrayLayer
     ) {
         throw unsupported("copyBufferToTexture");
     }
@@ -184,7 +185,7 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     public void copyTextureToBuffer(
         GpuTexture source,
         GpuBuffer destination,
-        long destinationOffset,
+        long offset,
         Runnable callback,
         int mipLevel
     ) {
@@ -195,7 +196,7 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     public void copyTextureToBuffer(
         GpuTexture source,
         GpuBuffer destination,
-        long destinationOffset,
+        long offset,
         Runnable callback,
         int mipLevel,
         int x,
@@ -210,13 +211,13 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     public void copyTextureToTexture(
         GpuTexture source,
         GpuTexture destination,
+        int mipLevel,
+        int destX,
+        int destY,
         int sourceX,
         int sourceY,
-        int destinationX,
-        int destinationY,
         int width,
-        int height,
-        int layer
+        int height
     ) {
         throw unsupported("copyTextureToTexture");
     }
@@ -227,7 +228,7 @@ public final class FoliumCommandEncoder implements CommandEncoder {
     }
 
     @Override
-    public void writeTimestamp(GpuQueryPool queryPool, int queryIndex) {
+    public void writeTimestamp(GpuQueryPool pool, int index) {
         throw unsupported("writeTimestamp");
     }
 
