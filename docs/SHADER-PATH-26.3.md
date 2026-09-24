@@ -1,77 +1,110 @@
 # Minecraft 26.3 shader path
 
-Minecraft 26.3 ships core shaders as GLSL 330 source files.
+## Client-side shader frontend
 
-Examples in the client assets begin with:
-
-```glsl
-#version 330
-#extension GL_ARB_separate_shader_objects : require
-```
-
-The RenderPearl frontend contains:
+Minecraft 26.3 contains:
 
 ```text
+ShaderSource
 GlslCompiler
-SPIRVModule
 PipelineBuilder
+SPIRVModule
+SpvUtil
 ```
 
-and the compiler path references LWJGL shaderc APIs.
-
-The desktop OpenGL backend also contains a `GlPipelineRecompiler` that
-decompiles backend shader modules before compiling them as OpenGL shader
-objects.
-
-## Browser consequence
-
-WebGPU's browser API creates shader modules from **WGSL source text**.
-
-Therefore Folium cannot simply pass Minecraft's SPIR-V module directly into
-`GPUDevice.createShaderModule()`.
-
-The browser backend needs its own shader path.
-
-## Candidate strategy
-
-Keep Minecraft's original GLSL assets and preprocessing semantics, but replace
-the native shaderc/SPIR-V path in Folium builds:
+The relevant contracts are:
 
 ```text
-Minecraft GLSL source
+ShaderSource.getShader(Identifier, ShaderType) -> String
+
+GlslCompiler.compileToSpv(
+    String name,
+    String source,
+    ShaderType type,
+    ShaderDefines defines,
+    ShaderSource sourceProvider
+) -> SpvModule
+```
+
+`PipelineBuilder` consumes a `RenderPipeline` and `ShaderSource`, then
+builds the backend pipeline asynchronously.
+
+## Shader assets
+
+The official 26.3 client JAR contains core, include and post shader resources.
+
+Inspection of the core vertex/fragment shaders shows:
+
+- GLSL 330;
+- explicit location qualifiers;
+- shared include files;
+- shader defines;
+- texture samplers and uniforms.
+
+The proprietary shader files are not copied into this repository.
+
+## Folium seam
+
+Folium should preserve Minecraft's existing frontend processing where possible:
+
+```text
+Minecraft shader resource
         |
-include + define preprocessing
+        +-- includes
+        +-- ShaderDefines
         |
         v
-Folium shader translation
+GlslCompiler
+        |
+        v
+SPIR-V
+        |
+        v
+Folium shader translator WASM
         |
         v
 WGSL
         |
         v
-GPUDevice.createShaderModule()
+WebGPU shader module
 ```
 
-A practical implementation can use a browser/WASM shader translation library
-rather than attempting to write a GLSL-to-WGSL compiler inside Folium.
+This seam is preferable to a custom textual GLSL rewriter because RenderPearl
+has already resolved Minecraft-specific preprocessing before SPIR-V reaches the
+backend boundary.
 
-## Native API leaks found so far
+## Browser constraint
 
-RenderPearl's API is mostly backend-neutral, but a few signatures leak native
-dependencies:
+Browser WebGPU shader modules consume WGSL source. SPIR-V therefore cannot be
+passed straight to `GPUDevice.createShaderModule()`.
 
-- `RenderPass.multiDrawIndexed(...)` references `org.lwjgl.PointerBuffer`
-- `ShaderSource.CachedIncludeSource` references a shaderc result type
-- `GlslCompiler` directly references shaderc callbacks/handles
+Folium's shader translator module uses Naga's SPIR-V frontend and WGSL backend.
 
-These should be handled with narrow Folium patches/shims rather than carrying
-all of LWJGL into the browser runtime.
+## Cache key
 
-## Updated renderer milestones
+The intended shader cache key is based on:
 
-1. preinitialize WebGPU before Java main;
-2. implement RenderPearl device/surface lifecycle;
-3. implement buffers/textures and command encoding;
-4. replace native shader compilation with GLSL -> WGSL;
-5. compile a simple Minecraft RenderPipeline;
-6. render the first Minecraft-owned draw call.
+```text
+SPIR-V bytes
++ shader stage
++ translator version
+```
+
+so repeated pipelines sharing the same shader module do not translate it more
+than once.
+
+## Next step
+
+Integrate the translator WASM module into `folium-host.js` and expose a host
+operation conceptually equivalent to:
+
+```text
+translateSpirv(byteBuffer) -> WGSL string
+```
+
+Then connect `FoliumGpuDevice.compilePipeline(...)` to:
+
+1. obtain Minecraft's compiled SPIR-V modules;
+2. translate vertex and fragment stages;
+3. combine them with `FoliumPipelineStateMapper`;
+4. create the final WebGPU render pipeline.
