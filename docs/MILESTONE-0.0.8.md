@@ -1,86 +1,91 @@
-# Milestone 0.0.8 — full Minecraft reachability target
+# Milestone 0.0.8 — RenderPearl render passes reach WebGPU
 
-Folium now has a separate TeaVM target whose main class is Minecraft 26.3
-itself:
+Folium now supports the first real RenderPearl render-pass lifecycle.
 
-```text
-net.minecraft.client.main.Main
-```
-
-This target is intentionally distinct from the small Folium WebGPU smoke test.
-
-## Build graph
+## Working path
 
 ```text
-local official Minecraft 26.3 client JAR
+GpuDevice.createTexture(...)
         |
         v
-:patcher:patchMinecraft
+FoliumGpuTexture
         |
         v
-build/folium/folium-minecraft-26.3.jar
-        |
-        +-- Pandora Java dependency JARs
-        +-- Folium render-webgpu
-        +-- Folium minecraft-bridge
-        +-- Folium platform-api
+GpuDevice.createTextureView(...)
         |
         v
-TeaVM WASM-GC
+FoliumGpuTextureView
         |
         v
-folium-client.wasm
+CommandEncoder.createRenderPass(...)
+        |
+        v
+FoliumRenderPass
+        |
+        +-- optional clear
+        +-- scissor
+        +-- debug groups
+        +-- close() -> GPURenderPassEncoder.end()
+        |
+        v
+CommandEncoder.submit()
+        |
+        v
+GPUQueue.submit(...)
 ```
 
-## Pandora defaults
+## Implemented texture-view operations
 
-For a client installed at:
+- full-texture views;
+- mip-range views;
+- width/height queries relative to the view;
+- explicit close/release lifecycle.
+
+Browser-side `GPUTextureView` objects are stored behind opaque integer tokens.
+
+## Implemented render-pass operations
+
+- color-only render pass creation;
+- clear or load behavior depending on RenderPearl's optional clear color;
+- debug-group push/pop;
+- scissor rectangle enable;
+- scissor reset to full attachment size;
+- pass close/end.
+
+Depth attachments are intentionally not wired yet.
+
+## Why this matters
+
+This is the first point where Folium is no longer issuing only standalone
+commands. It can now mirror the same command structure that Minecraft's real
+renderer uses:
 
 ```text
-~/.local/share/PandoraLauncher/libraries/net/minecraft/26.3/minecraft-client-26.3.jar
+begin pass
+  -> configure pass
+  -> eventually bind pipeline/buffers
+  -> draw
+end pass
+submit
 ```
 
-Folium infers the dependency root as:
+## Current hard stop
 
-```text
-~/.local/share/PandoraLauncher/libraries
-```
+Actual draw calls still require:
 
-It excludes:
+- `CompiledRenderPipeline`;
+- vertex buffers;
+- index buffers;
+- bind groups/uniform bindings;
+- shader translation/compilation.
 
-- the original Minecraft client JAR, because the patched JAR replaces it;
-- native classifier JARs;
-- source/javadoc JARs.
+The next useful milestone is therefore:
 
-## Commands
+1. implement `GpuBuffer` and `GpuBufferSlice`;
+2. map RenderPearl buffer usage flags to WebGPU;
+3. implement `setVertexBuffer`;
+4. implement a minimal compiled pipeline wrapper;
+5. issue the first triangle through `RenderPass.draw(...)`.
 
-```bash
-export FOLIUM_MINECRAFT_JAR="$HOME/.local/share/PandoraLauncher/libraries/net/minecraft/26.3/minecraft-client-26.3.jar"
-
-gradle :patcher:patchMinecraft
-gradle :client-wasm:buildWasmGC --stacktrace
-```
-
-If the launcher layout differs:
-
-```bash
-export FOLIUM_MINECRAFT_LIBRARIES="/path/to/libraries"
-```
-
-## Why this milestone matters
-
-The first failure from this target is no longer a guessed architecture issue.
-
-It is the **actual next unsupported class/method in Minecraft's TeaVM reachable
-graph**.
-
-From this point forward, Folium can become an iterative port:
-
-```text
-compile
-  -> first unsupported boundary
-  -> patch/bridge it
-  -> compile again
-```
-
-rather than manually porting the whole client in advance.
+At that point, Folium will have a true RenderPearl-to-WebGPU draw path rather
+than only clears.
