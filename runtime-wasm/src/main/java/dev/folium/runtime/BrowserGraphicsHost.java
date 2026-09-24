@@ -44,10 +44,6 @@ public final class BrowserGraphicsHost implements GraphicsHost {
         script="globalThis.__foliumWebGpuBridge.writeBuffer(bufferToken, offset, data);")
     public native void writeBuffer(int bufferToken, long offset, ByteBuffer data);
 
-    @Override
-    @JSBody(script="return globalThis.__foliumWebGpuBridge.createBootstrapTriangleIndexBuffer();")
-    public native int createBootstrapTriangleIndexBuffer();
-
     @Override @JSBody(params={"bufferToken"}, script="globalThis.__foliumWebGpuBridge.destroyBuffer(bufferToken);")
     public native void destroyBuffer(int bufferToken);
 
