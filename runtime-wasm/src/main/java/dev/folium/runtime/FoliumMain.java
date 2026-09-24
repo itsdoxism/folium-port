@@ -10,10 +10,12 @@ public final class FoliumMain {
             return;
         }
 
-        if (WebGpuProbe.isAvailable()) {
-            WebGpuProbe.setStatus("Folium WASM-GC → browser bridge OK · WebGPU available", true);
-        } else {
+        if (!WebGpuProbe.isAvailable()) {
             WebGpuProbe.setStatus("Folium WASM-GC → browser bridge OK · WebGPU unavailable", false);
+            return;
         }
+
+        WebGpuProbe.setStatus("Folium WASM-GC → requesting WebGPU device…", true);
+        WebGpuProbe.renderFirstFrame();
     }
 }
