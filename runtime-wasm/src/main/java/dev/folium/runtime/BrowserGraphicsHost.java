@@ -74,6 +74,11 @@ public final class BrowserGraphicsHost implements GraphicsHost {
         script="return globalThis.__foliumWebGpuBridge.createVertexColorPipeline(layoutJson, colorFormat);")
     public native int createVertexColorPipeline(String layoutJson, String colorFormat);
 
+    @Override
+    @JSBody(params={"pipelineStateJson"},
+        script="return globalThis.__foliumWebGpuBridge.createPipelineFromState(pipelineStateJson);")
+    public native int createPipelineFromState(String pipelineStateJson);
+
     @Override @JSBody(params={"pipelineToken"}, script="globalThis.__foliumWebGpuBridge.destroyPipeline(pipelineToken);")
     public native void destroyPipeline(int pipelineToken);
 
