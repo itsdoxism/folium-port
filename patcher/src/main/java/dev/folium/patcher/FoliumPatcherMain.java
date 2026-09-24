@@ -64,6 +64,8 @@ public final class FoliumPatcherMain {
         "com/mojang/blaze3d/platform/MessageBox.class";
     private static final String MACOS_UTIL =
         "com/mojang/blaze3d/platform/MacosUtil.class";
+    private static final String CONNECTION =
+        "net/minecraft/network/Connection.class";
 
     private FoliumPatcherMain() {
     }
@@ -130,6 +132,7 @@ public final class FoliumPatcherMain {
         boolean sawMouseHandler = false;
         boolean sawMessageBox = false;
         boolean sawMacosUtil = false;
+        boolean sawConnection = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -221,6 +224,9 @@ public final class FoliumPatcherMain {
                 } else if (MACOS_UTIL.equals(entry.getName())) {
                     bytes = patchMacosUtil(bytes, applied);
                     sawMacosUtil = true;
+                } else if (CONNECTION.equals(entry.getName())) {
+                    bytes = patchConnection(bytes, applied);
+                    sawConnection = true;
                 }
 
                 out.write(bytes);
@@ -249,7 +255,8 @@ public final class FoliumPatcherMain {
             !sawInputQuirks ||
             !sawMouseHandler ||
             !sawMessageBox ||
-            !sawMacosUtil
+            !sawMacosUtil ||
+            !sawConnection
         ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
@@ -382,6 +389,355 @@ public final class FoliumPatcherMain {
         );
 
         return write(node);
+    }
+
+    private static byte[] patchConnection(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode connectToServer = requireMethod(
+            node,
+            "connectToServer",
+            "(Ljava/net/InetSocketAddress;" +
+                "Lnet/minecraft/server/network/EventLoopGroupHolder;" +
+                "Lnet/minecraft/util/debugchart/LocalSampleLogger;)" +
+                "Lnet/minecraft/network/Connection;"
+        );
+        connectToServer.instructions.clear();
+        connectToServer.tryCatchBlocks.clear();
+        if (connectToServer.localVariables != null) {
+            connectToServer.localVariables.clear();
+        }
+
+        InsnList connect = connectToServer.instructions;
+        connect.add(new TypeInsnNode(
+            Opcodes.NEW,
+            "net/minecraft/network/Connection"
+        ));
+        connect.add(new InsnNode(Opcodes.DUP));
+        connect.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETSTATIC,
+            "net/minecraft/network/protocol/PacketFlow",
+            "CLIENTBOUND",
+            "Lnet/minecraft/network/protocol/PacketFlow;"
+        ));
+        connect.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "net/minecraft/network/Connection",
+            "<init>",
+            "(Lnet/minecraft/network/protocol/PacketFlow;)V",
+            false
+        ));
+        connect.add(new VarInsnNode(Opcodes.ASTORE, 3));
+
+        connect.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        connect.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        connect.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "net/minecraft/network/Connection",
+            "address",
+            "Ljava/net/SocketAddress;"
+        ));
+
+        connect.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        connect.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        connect.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "connect",
+            "(Lnet/minecraft/network/Connection;" +
+                "Ljava/net/InetSocketAddress;)V",
+            false
+        ));
+
+        connect.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        connect.add(new InsnNode(Opcodes.ARETURN));
+        connectToServer.maxStack = 3;
+        connectToServer.maxLocals = 4;
+
+        MethodNode setupInbound = requireMethod(
+            node,
+            "setupInboundProtocol",
+            "(Lnet/minecraft/network/ProtocolInfo;" +
+                "Lnet/minecraft/network/PacketListener;)V"
+        );
+        setupInbound.instructions.clear();
+        setupInbound.tryCatchBlocks.clear();
+        if (setupInbound.localVariables != null) {
+            setupInbound.localVariables.clear();
+        }
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        setupInbound.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "net/minecraft/network/Connection",
+            "validateListener",
+            "(Lnet/minecraft/network/ProtocolInfo;" +
+                "Lnet/minecraft/network/PacketListener;)V",
+            false
+        ));
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        setupInbound.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "net/minecraft/network/Connection",
+            "packetListener",
+            "Lnet/minecraft/network/PacketListener;"
+        ));
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        setupInbound.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+        setupInbound.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "net/minecraft/network/Connection",
+            "disconnectListener",
+            "Lnet/minecraft/network/PacketListener;"
+        ));
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        setupInbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        setupInbound.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "setInboundProtocol",
+            "(Lnet/minecraft/network/Connection;" +
+                "Lnet/minecraft/network/ProtocolInfo;)V",
+            false
+        ));
+        setupInbound.instructions.add(new InsnNode(Opcodes.RETURN));
+        setupInbound.maxStack = 3;
+        setupInbound.maxLocals = 3;
+
+        MethodNode setupOutbound = requireMethod(
+            node,
+            "setupOutboundProtocol",
+            "(Lnet/minecraft/network/ProtocolInfo;)V"
+        );
+        setupOutbound.instructions.clear();
+        setupOutbound.tryCatchBlocks.clear();
+        if (setupOutbound.localVariables != null) {
+            setupOutbound.localVariables.clear();
+        }
+        setupOutbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        setupOutbound.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        setupOutbound.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "setOutboundProtocol",
+            "(Lnet/minecraft/network/Connection;" +
+                "Lnet/minecraft/network/ProtocolInfo;)V",
+            false
+        ));
+        setupOutbound.instructions.add(new InsnNode(Opcodes.RETURN));
+        setupOutbound.maxStack = 2;
+        setupOutbound.maxLocals = 2;
+
+        patchConnectionSend(node, "send",
+            "(Lnet/minecraft/network/protocol/Packet;)V");
+        patchConnectionSend(node, "sendPacket",
+            "(Lnet/minecraft/network/protocol/Packet;" +
+                "Lio/netty/channel/ChannelFutureListener;Z)V");
+
+        MethodNode sendFull = requireMethod(
+            node,
+            "send",
+            "(Lnet/minecraft/network/protocol/Packet;" +
+                "Lio/netty/channel/ChannelFutureListener;Z)V"
+        );
+        sendFull.instructions.clear();
+        sendFull.tryCatchBlocks.clear();
+        if (sendFull.localVariables != null) {
+            sendFull.localVariables.clear();
+        }
+        sendFull.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        sendFull.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        sendFull.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "send",
+            "(Lnet/minecraft/network/Connection;" +
+                "Lnet/minecraft/network/protocol/Packet;)V",
+            false
+        ));
+        sendFull.instructions.add(new InsnNode(Opcodes.RETURN));
+        sendFull.maxStack = 2;
+        sendFull.maxLocals = 4;
+
+        MethodNode sendListener = requireMethod(
+            node,
+            "send",
+            "(Lnet/minecraft/network/protocol/Packet;" +
+                "Lio/netty/channel/ChannelFutureListener;)V"
+        );
+        sendListener.instructions.clear();
+        sendListener.tryCatchBlocks.clear();
+        if (sendListener.localVariables != null) {
+            sendListener.localVariables.clear();
+        }
+        sendListener.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        sendListener.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        sendListener.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "send",
+            "(Lnet/minecraft/network/Connection;" +
+                "Lnet/minecraft/network/protocol/Packet;)V",
+            false
+        ));
+        sendListener.instructions.add(new InsnNode(Opcodes.RETURN));
+        sendListener.maxStack = 2;
+        sendListener.maxLocals = 3;
+
+        MethodNode runOnce = requireMethod(
+            node,
+            "runOnceConnected",
+            "(Ljava/util/function/Consumer;)V"
+        );
+        runOnce.instructions.clear();
+        runOnce.tryCatchBlocks.clear();
+        if (runOnce.localVariables != null) {
+            runOnce.localVariables.clear();
+        }
+        runOnce.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        runOnce.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        runOnce.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKEINTERFACE,
+            "java/util/function/Consumer",
+            "accept",
+            "(Ljava/lang/Object;)V",
+            true
+        ));
+        runOnce.instructions.add(new InsnNode(Opcodes.RETURN));
+        runOnce.maxStack = 2;
+        runOnce.maxLocals = 2;
+
+        MethodNode tick = requireMethod(node, "tick", "()V");
+        tick.instructions.clear();
+        tick.tryCatchBlocks.clear();
+        if (tick.localVariables != null) {
+            tick.localVariables.clear();
+        }
+        tick.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        tick.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "tick",
+            "(Lnet/minecraft/network/Connection;)V",
+            false
+        ));
+        tick.instructions.add(new InsnNode(Opcodes.RETURN));
+        tick.maxStack = 1;
+        tick.maxLocals = 1;
+
+        MethodNode connected = requireMethod(node, "isConnected", "()Z");
+        replaceConnectionBoolean(
+            connected,
+            "isConnected"
+        );
+
+        MethodNode connecting = requireMethod(node, "isConnecting", "()Z");
+        replaceConnectionBoolean(
+            connecting,
+            "isConnecting"
+        );
+
+        MethodNode disconnect = requireMethod(
+            node,
+            "disconnect",
+            "(Lnet/minecraft/network/DisconnectionDetails;)V"
+        );
+        disconnect.instructions.clear();
+        disconnect.tryCatchBlocks.clear();
+        if (disconnect.localVariables != null) {
+            disconnect.localVariables.clear();
+        }
+        disconnect.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        disconnect.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        disconnect.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "net/minecraft/network/Connection",
+            "disconnectionDetails",
+            "Lnet/minecraft/network/DisconnectionDetails;"
+        ));
+        disconnect.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        disconnect.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        disconnect.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "disconnect",
+            "(Lnet/minecraft/network/Connection;" +
+                "Lnet/minecraft/network/DisconnectionDetails;)V",
+            false
+        ));
+        disconnect.instructions.add(new InsnNode(Opcodes.RETURN));
+        disconnect.maxStack = 2;
+        disconnect.maxLocals = 2;
+
+        replaceWithReturnVoid(node, "flushChannel", "()V");
+        replaceWithReturnVoid(node, "setReadOnly", "()V");
+
+        MethodNode memory = requireMethod(node, "isMemoryConnection", "()Z");
+        memory.instructions.clear();
+        memory.tryCatchBlocks.clear();
+        memory.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        memory.instructions.add(new InsnNode(Opcodes.IRETURN));
+        memory.maxStack = 1;
+        memory.maxLocals = 1;
+
+        applied.add("Connection.connectToServer: open Folium WebSocket session");
+        applied.add("Connection protocol setup: replace Netty pipeline mutation");
+        applied.add("Connection send/tick/disconnect: FoliumNetworkSession bridge");
+        applied.add("Connection status/flush/read-only: browser transport semantics");
+
+        return write(node);
+    }
+
+    private static void patchConnectionSend(
+        ClassNode node,
+        String name,
+        String descriptor
+    ) {
+        MethodNode method = requireMethod(node, name, descriptor);
+        method.instructions.clear();
+        method.tryCatchBlocks.clear();
+        if (method.localVariables != null) {
+            method.localVariables.clear();
+        }
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        method.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "send",
+            "(Lnet/minecraft/network/Connection;" +
+                "Lnet/minecraft/network/protocol/Packet;)V",
+            false
+        ));
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        method.maxStack = 2;
+    }
+
+    private static void replaceConnectionBoolean(
+        MethodNode method,
+        String bridgeMethod
+    ) {
+        method.instructions.clear();
+        method.tryCatchBlocks.clear();
+        if (method.localVariables != null) {
+            method.localVariables.clear();
+        }
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            bridgeMethod,
+            "(Lnet/minecraft/network/Connection;)Z",
+            false
+        ));
+        method.instructions.add(new InsnNode(Opcodes.IRETURN));
+        method.maxStack = 1;
+        method.maxLocals = 1;
     }
 
     private static byte[] patchMessageBox(
