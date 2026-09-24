@@ -44,6 +44,12 @@ public final class FoliumPatcherMain {
         "com/mojang/blaze3d/platform/TextInputManager.class";
     private static final String CLIPBOARD_MANAGER =
         "com/mojang/blaze3d/platform/ClipboardManager.class";
+    private static final String MONITOR =
+        "com/mojang/blaze3d/platform/Monitor.class";
+    private static final String MONITOR_MANAGER =
+        "com/mojang/blaze3d/platform/MonitorManager.class";
+    private static final String VIDEO_MODE =
+        "com/mojang/blaze3d/platform/VideoMode.class";
 
     private FoliumPatcherMain() {
     }
@@ -100,6 +106,9 @@ public final class FoliumPatcherMain {
         boolean sawInputConstants = false;
         boolean sawTextInputManager = false;
         boolean sawClipboardManager = false;
+        boolean sawMonitor = false;
+        boolean sawMonitorManager = false;
+        boolean sawVideoMode = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -161,6 +170,15 @@ public final class FoliumPatcherMain {
                 } else if (CLIPBOARD_MANAGER.equals(entry.getName())) {
                     bytes = patchClipboardManager(bytes, applied);
                     sawClipboardManager = true;
+                } else if (MONITOR.equals(entry.getName())) {
+                    bytes = patchMonitor(bytes, applied);
+                    sawMonitor = true;
+                } else if (MONITOR_MANAGER.equals(entry.getName())) {
+                    bytes = patchMonitorManager(bytes, applied);
+                    sawMonitorManager = true;
+                } else if (VIDEO_MODE.equals(entry.getName())) {
+                    bytes = patchVideoMode(bytes, applied);
+                    sawVideoMode = true;
                 }
 
                 out.write(bytes);
@@ -179,7 +197,10 @@ public final class FoliumPatcherMain {
             !sawEventHandler ||
             !sawInputConstants ||
             !sawTextInputManager ||
-            !sawClipboardManager
+            !sawClipboardManager ||
+            !sawMonitor ||
+            !sawMonitorManager ||
+            !sawVideoMode
         ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
@@ -311,6 +332,174 @@ public final class FoliumPatcherMain {
             "PreferredGraphicsApi.getBackendsToTry: force FoliumWebGpuBackend"
         );
 
+        return write(node);
+    }
+
+    private static byte[] patchMonitor(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode tryCreate = requireMethod(
+            node,
+            "tryCreate",
+            "(I)Lcom/mojang/blaze3d/platform/Monitor;"
+        );
+        tryCreate.instructions.clear();
+        tryCreate.tryCatchBlocks.clear();
+        if (tryCreate.localVariables != null) {
+            tryCreate.localVariables.clear();
+        }
+        tryCreate.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumDisplayBootstrap",
+            "primaryMonitor",
+            "()Lcom/mojang/blaze3d/platform/Monitor;",
+            false
+        ));
+        tryCreate.instructions.add(new InsnNode(Opcodes.ARETURN));
+        tryCreate.maxStack = 1;
+        tryCreate.maxLocals = 1;
+
+        MethodNode queryName = requireMethod(
+            node,
+            "queryMonitorName",
+            "(I)Ljava/lang/String;"
+        );
+        queryName.instructions.clear();
+        queryName.tryCatchBlocks.clear();
+        if (queryName.localVariables != null) {
+            queryName.localVariables.clear();
+        }
+        queryName.instructions.add(new VarInsnNode(Opcodes.ILOAD, 0));
+        queryName.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumDisplayBootstrap",
+            "monitorName",
+            "(I)Ljava/lang/String;",
+            false
+        ));
+        queryName.instructions.add(new InsnNode(Opcodes.ARETURN));
+        queryName.maxStack = 1;
+        queryName.maxLocals = 1;
+
+        applied.add("Monitor.tryCreate/queryMonitorName: synthetic browser display");
+        return write(node);
+    }
+
+    private static byte[] patchMonitorManager(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode constructor = requireMethod(node, "<init>", "()V");
+        constructor.instructions.clear();
+        constructor.tryCatchBlocks.clear();
+        if (constructor.localVariables != null) {
+            constructor.localVariables.clear();
+        }
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "java/lang/Object",
+            "<init>",
+            "()V",
+            false
+        ));
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumDisplayBootstrap",
+            "monitorMap",
+            "()Lit/unimi/dsi/fastutil/ints/Int2ObjectMap;",
+            false
+        ));
+        constructor.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/MonitorManager",
+            "monitors",
+            "Lit/unimi/dsi/fastutil/ints/Int2ObjectMap;"
+        ));
+        constructor.instructions.add(new InsnNode(Opcodes.RETURN));
+        constructor.maxStack = 2;
+        constructor.maxLocals = 1;
+
+        replaceWithReturnVoid(node, "onDisplayConnected", "(I)V");
+        replaceWithReturnVoid(node, "onDisplayDisconnected", "(I)V");
+        replaceWithReturnVoid(node, "onDisplayModeChanged", "(I)V");
+
+        MethodNode add = requireMethod(
+            node,
+            "addDisplay",
+            "(I)Lcom/mojang/blaze3d/platform/Monitor;"
+        );
+        replaceWithStaticReturn(
+            add,
+            "dev/folium/render/webgpu/FoliumDisplayBootstrap",
+            "primaryMonitor",
+            "()Lcom/mojang/blaze3d/platform/Monitor;",
+            Opcodes.ARETURN
+        );
+
+        MethodNode get = requireMethod(
+            node,
+            "getMonitor",
+            "(I)Lcom/mojang/blaze3d/platform/Monitor;"
+        );
+        get.instructions.clear();
+        get.tryCatchBlocks.clear();
+        if (get.localVariables != null) {
+            get.localVariables.clear();
+        }
+        get.instructions.add(new VarInsnNode(Opcodes.ILOAD, 1));
+        get.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumDisplayBootstrap",
+            "monitor",
+            "(I)Lcom/mojang/blaze3d/platform/Monitor;",
+            false
+        ));
+        get.instructions.add(new InsnNode(Opcodes.ARETURN));
+        get.maxStack = 1;
+        get.maxLocals = 2;
+
+        MethodNode find = requireMethod(
+            node,
+            "findBestMonitor",
+            "(Lcom/mojang/blaze3d/platform/Window;)Lcom/mojang/blaze3d/platform/Monitor;"
+        );
+        replaceWithStaticReturn(
+            find,
+            "dev/folium/render/webgpu/FoliumDisplayBootstrap",
+            "primaryMonitor",
+            "()Lcom/mojang/blaze3d/platform/Monitor;",
+            Opcodes.ARETURN
+        );
+
+        applied.add("MonitorManager: replace SDL display enumeration with synthetic browser monitor");
+        return write(node);
+    }
+
+    private static byte[] patchVideoMode(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        boolean removed = node.methods.removeIf(method ->
+            method.name.equals("<init>") &&
+            method.desc.equals("(Lorg/lwjgl/sdl/SDL_DisplayMode;)V")
+        );
+
+        if (!removed) {
+            throw drift(
+                "VideoMode SDL constructor expected exactly once"
+            );
+        }
+
+        applied.add("VideoMode: remove SDL_DisplayMode constructor");
         return write(node);
     }
 
