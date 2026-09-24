@@ -34,6 +34,8 @@ public final class FoliumPatcherMain {
         "net/minecraft/client/PreferredGraphicsApi.class";
     private static final String RENDER_SYSTEM =
         "com/mojang/blaze3d/systems/RenderSystem.class";
+    private static final String WINDOW =
+        "com/mojang/blaze3d/platform/Window.class";
 
     private FoliumPatcherMain() {
     }
@@ -85,6 +87,7 @@ public final class FoliumPatcherMain {
         boolean sawShaderManager = false;
         boolean sawGraphicsApi = false;
         boolean sawRenderSystem = false;
+        boolean sawWindow = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -131,6 +134,9 @@ public final class FoliumPatcherMain {
                 } else if (RENDER_SYSTEM.equals(entry.getName())) {
                     bytes = patchRenderSystem(bytes, applied);
                     sawRenderSystem = true;
+                } else if (WINDOW.equals(entry.getName())) {
+                    bytes = patchWindow(bytes, applied);
+                    sawWindow = true;
                 }
 
                 out.write(bytes);
@@ -141,7 +147,7 @@ public final class FoliumPatcherMain {
             throw failure;
         }
 
-        if (!sawShaderManager || !sawGraphicsApi || !sawRenderSystem) {
+        if (!sawShaderManager || !sawGraphicsApi || !sawRenderSystem || !sawWindow) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
                 "Input JAR does not match the expected Minecraft 26.3 client layout"
@@ -273,6 +279,370 @@ public final class FoliumPatcherMain {
         );
 
         return write(node);
+    }
+
+    private static byte[] patchWindow(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode constructor = requireMethod(
+            node,
+            "<init>",
+            "(Lcom/mojang/blaze3d/platform/WindowEventHandler;" +
+                "Lcom/mojang/blaze3d/platform/DisplayData;" +
+                "Ljava/lang/String;ZLjava/lang/String;" +
+                "Lcom/mojang/blaze3d/platform/MonitorManager;" +
+                "Lcom/mojang/renderpearl/api/device/GpuBackend;I)V"
+        );
+
+        constructor.instructions.clear();
+        constructor.tryCatchBlocks.clear();
+        if (constructor.localVariables != null) {
+            constructor.localVariables.clear();
+        }
+
+        InsnList code = constructor.instructions;
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "java/lang/Object",
+            "<init>",
+            "()V",
+            false
+        ));
+
+        putStringField(code, "errorSection", "Startup");
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new InsnNode(Opcodes.ICONST_1));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "focused",
+            "Z"
+        ));
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.GETSTATIC,
+            "com/mojang/blaze3d/platform/cursor/CursorType",
+            "DEFAULT",
+            "Lcom/mojang/blaze3d/platform/cursor/CursorType;"
+        ));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "currentCursor",
+            "Lcom/mojang/blaze3d/platform/cursor/CursorType;"
+        ));
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 6));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "monitorManager",
+            "Lcom/mojang/blaze3d/platform/MonitorManager;"
+        ));
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "eventHandler",
+            "Lcom/mojang/blaze3d/platform/WindowEventHandler;"
+        ));
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "java/util/Optional",
+            "empty",
+            "()Ljava/util/Optional;",
+            false
+        ));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "preferredFullscreenVideoMode",
+            "Ljava/util/Optional;"
+        ));
+
+        putBooleanField(code, "fullscreenRequested", false);
+        putBooleanField(code, "fullscreen", false);
+        putBooleanField(code, "exclusiveFullscreen", false);
+        putBooleanField(code, "borderlessFullscreen", false);
+        putBooleanField(code, "iconified", false);
+        putBooleanField(code, "shouldClose", false);
+
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "framebufferWidth",
+            "()I",
+            false
+        ));
+        code.add(new VarInsnNode(Opcodes.ISTORE, 9));
+
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "framebufferHeight",
+            "()I",
+            false
+        ));
+        code.add(new VarInsnNode(Opcodes.ISTORE, 10));
+
+        putIntFieldFromLocal(code, "width", 9);
+        putIntFieldFromLocal(code, "windowedWidth", 9);
+        putIntFieldFromLocal(code, "framebufferWidth", 9);
+        putIntFieldFromLocal(code, "height", 10);
+        putIntFieldFromLocal(code, "windowedHeight", 10);
+        putIntFieldFromLocal(code, "framebufferHeight", 10);
+        putIntField(code, "x", 0);
+        putIntField(code, "y", 0);
+        putIntField(code, "windowedX", 0);
+        putIntField(code, "windowedY", 0);
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "windowHandle",
+            "()J",
+            false
+        ));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "handle",
+            "J"
+        ));
+
+        code.add(new VarInsnNode(Opcodes.ALOAD, 5));
+        code.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "setTitle",
+            "(Ljava/lang/String;)V",
+            false
+        ));
+
+        code.add(new InsnNode(Opcodes.RETURN));
+        constructor.maxStack = 3;
+        constructor.maxLocals = 11;
+
+        replaceStaticStringMethod(
+            node,
+            "getPlatform",
+            "()Ljava/lang/String;",
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "platformName"
+        );
+
+        MethodNode queryFramebuffer = requireMethod(
+            node,
+            "queryFramebufferSize",
+            "()Lcom/mojang/blaze3d/platform/Window$FramebufferSize;"
+        );
+        replaceWithStaticReturn(
+            queryFramebuffer,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "queryFramebufferSize",
+            "()Lcom/mojang/blaze3d/platform/Window$FramebufferSize;",
+            Opcodes.ARETURN
+        );
+
+        MethodNode refreshFramebuffer = requireMethod(
+            node,
+            "refreshFramebufferSize",
+            "()V"
+        );
+        refreshFramebuffer.instructions.clear();
+        refreshFramebuffer.tryCatchBlocks.clear();
+        refreshFramebuffer.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        refreshFramebuffer.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "framebufferWidth",
+            "()I",
+            false
+        ));
+        refreshFramebuffer.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "framebufferWidth",
+            "I"
+        ));
+        refreshFramebuffer.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        refreshFramebuffer.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "framebufferHeight",
+            "()I",
+            false
+        ));
+        refreshFramebuffer.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "framebufferHeight",
+            "I"
+        ));
+        refreshFramebuffer.instructions.add(new InsnNode(Opcodes.RETURN));
+        refreshFramebuffer.maxStack = 2;
+        refreshFramebuffer.maxLocals = 1;
+
+        MethodNode setTitle = requireMethod(
+            node,
+            "setTitle",
+            "(Ljava/lang/String;)V"
+        );
+        setTitle.instructions.clear();
+        setTitle.tryCatchBlocks.clear();
+        setTitle.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        setTitle.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumWindowBootstrap",
+            "setTitle",
+            "(Ljava/lang/String;)V",
+            false
+        ));
+        setTitle.instructions.add(new InsnNode(Opcodes.RETURN));
+        setTitle.maxStack = 1;
+        setTitle.maxLocals = 2;
+
+        replaceWithReturnVoid(node, "setWindowMaxSize", "(II)V");
+        replaceWithReturnVoid(node, "close", "()V");
+
+        applied.add("Window.<init>: replace SDL window construction with browser canvas state");
+        applied.add("Window.getPlatform/queryFramebufferSize/setTitle: browser host bridge");
+        applied.add("Window.refreshFramebufferSize: browser canvas dimensions");
+        applied.add("Window.close/setWindowMaxSize: remove SDL calls");
+
+        return write(node);
+    }
+
+    private static void putStringField(
+        InsnList code,
+        String field,
+        String value
+    ) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new org.objectweb.asm.tree.LdcInsnNode(value));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            field,
+            "Ljava/lang/String;"
+        ));
+    }
+
+    private static void putBooleanField(
+        InsnList code,
+        String field,
+        boolean value
+    ) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new InsnNode(value ? Opcodes.ICONST_1 : Opcodes.ICONST_0));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            field,
+            "Z"
+        ));
+    }
+
+    private static void putIntField(
+        InsnList code,
+        String field,
+        int value
+    ) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        if (value == 0) {
+            code.add(new InsnNode(Opcodes.ICONST_0));
+        } else {
+            code.add(new org.objectweb.asm.tree.LdcInsnNode(value));
+        }
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            field,
+            "I"
+        ));
+    }
+
+    private static void putIntFieldFromLocal(
+        InsnList code,
+        String field,
+        int local
+    ) {
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(new VarInsnNode(Opcodes.ILOAD, local));
+        code.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            field,
+            "I"
+        ));
+    }
+
+    private static void replaceStaticStringMethod(
+        ClassNode node,
+        String name,
+        String descriptor,
+        String owner,
+        String target
+    ) {
+        MethodNode method = requireMethod(node, name, descriptor);
+        replaceWithStaticReturn(
+            method,
+            owner,
+            target,
+            "()Ljava/lang/String;",
+            Opcodes.ARETURN
+        );
+    }
+
+    private static void replaceWithStaticReturn(
+        MethodNode method,
+        String owner,
+        String name,
+        String descriptor,
+        int returnOpcode
+    ) {
+        method.instructions.clear();
+        method.tryCatchBlocks.clear();
+        if (method.localVariables != null) {
+            method.localVariables.clear();
+        }
+        method.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            owner,
+            name,
+            descriptor,
+            false
+        ));
+        method.instructions.add(new InsnNode(returnOpcode));
+        method.maxStack = 2;
+    }
+
+    private static void replaceWithReturnVoid(
+        ClassNode node,
+        String name,
+        String descriptor
+    ) {
+        MethodNode method = requireMethod(node, name, descriptor);
+        method.instructions.clear();
+        method.tryCatchBlocks.clear();
+        if (method.localVariables != null) {
+            method.localVariables.clear();
+        }
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        method.maxStack = 0;
     }
 
     private static byte[] patchRenderSystem(
