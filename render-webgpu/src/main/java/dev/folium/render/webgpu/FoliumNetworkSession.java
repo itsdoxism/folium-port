@@ -7,10 +7,8 @@ import net.minecraft.network.protocol.BundlerInfo;
 import net.minecraft.network.protocol.Packet;
 
 import javax.crypto.Cipher;
-import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.Queue;
 
 public final class FoliumNetworkSession implements AutoCloseable {
     private final NetworkHost.Connection transport;
@@ -27,8 +25,6 @@ public final class FoliumNetworkSession implements AutoCloseable {
     private byte[] inboundStream = new byte[0];
 
     private BundlerInfo.Bundler inboundBundler;
-    private final Queue<Packet<?>> readyInboundPackets =
-        new ArrayDeque<>();
 
     public FoliumNetworkSession(String endpoint) {
         this.transport = FoliumRuntime.platform()
@@ -50,7 +46,6 @@ public final class FoliumNetworkSession implements AutoCloseable {
             "protocol"
         );
         this.inboundBundler = null;
-        this.readyInboundPackets.clear();
     }
 
     public void setOutboundProtocol(ProtocolInfo<?> protocol) {
@@ -148,11 +143,6 @@ public final class FoliumNetworkSession implements AutoCloseable {
     }
 
     public Packet<?> pollPacket() {
-        Packet<?> ready = readyInboundPackets.poll();
-        if (ready != null) {
-            return ready;
-        }
-
         ProtocolInfo<?> protocol = inboundProtocol;
         if (protocol == null) {
             return null;
