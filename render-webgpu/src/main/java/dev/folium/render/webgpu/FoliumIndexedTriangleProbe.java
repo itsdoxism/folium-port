@@ -1,11 +1,13 @@
 package dev.folium.render.webgpu;
 
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.device.GpuDevice;
 import com.mojang.renderpearl.api.pipeline.IndexType;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
-import dev.folium.platform.GraphicsHost;
 import org.joml.Vector4f;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Optional;
 
 public final class FoliumIndexedTriangleProbe {
@@ -14,11 +16,22 @@ public final class FoliumIndexedTriangleProbe {
 
     public static void draw(
         GpuDevice device,
-        GraphicsHost graphics,
         GpuTextureView colorTarget,
         FoliumCompiledRenderPipeline pipeline
     ) {
-        try (FoliumGpuBuffer indices = FoliumGpuBuffer.bootstrapTriangleIndexBuffer(graphics)) {
+        ByteBuffer indexData = ByteBuffer.allocateDirect(6)
+            .order(ByteOrder.LITTLE_ENDIAN);
+
+        indexData.putShort((short) 0);
+        indexData.putShort((short) 1);
+        indexData.putShort((short) 2);
+        indexData.flip();
+
+        try (GpuBuffer indices = device.createBuffer(
+            () -> "Folium Java ByteBuffer triangle indices",
+            GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
+            indexData
+        )) {
             var encoder = device.createCommandEncoder();
 
             try (var pass = encoder.createRenderPass(
