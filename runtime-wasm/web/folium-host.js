@@ -299,6 +299,72 @@ globalThis.__foliumWebGpuBridge = {
         return storeResource("pipeline", pipeline);
     },
 
+    createVertexColorPipeline(layoutJson, colorFormat) {
+        if (!foliumHostState.deviceReady) {
+            throw new Error("Folium WebGPU device is not ready");
+        }
+
+        const layout = JSON.parse(layoutJson);
+        const shader = foliumHostState.device.createShaderModule({
+            label: "Folium vertex-buffer probe shader",
+            code: `
+                struct VertexIn {
+                    @location(0) position: vec3f,
+                    @location(1) color: vec4f,
+                };
+
+                struct VertexOut {
+                    @builtin(position) position: vec4f,
+                    @location(0) color: vec4f,
+                };
+
+                @vertex
+                fn vs_main(input: VertexIn) -> VertexOut {
+                    var out: VertexOut;
+                    out.position = vec4f(input.position, 1.0);
+                    out.color = input.color;
+                    return out;
+                }
+
+                @fragment
+                fn fs_main(input: VertexOut) -> @location(0) vec4f {
+                    return input.color;
+                }
+            `
+        });
+
+        const pipeline = foliumHostState.device.createRenderPipeline({
+            label: "Folium translated vertex-layout pipeline",
+            layout: "auto",
+            vertex: {
+                module: shader,
+                entryPoint: "vs_main",
+                buffers: [{
+                    arrayStride: layout.arrayStride,
+                    stepMode: layout.stepMode,
+                    attributes: layout.attributes.map(attribute => ({
+                        shaderLocation: attribute.shaderLocation,
+                        offset: attribute.offset,
+                        format: attribute.webGpuFormat
+                    }))
+                }]
+            },
+            fragment: {
+                module: shader,
+                entryPoint: "fs_main",
+                targets: [{
+                    format: normalizePipelineFormat(colorFormat)
+                }]
+            },
+            primitive: {
+                topology: "triangle-list",
+                cullMode: "none"
+            }
+        });
+
+        return storeResource("pipeline", pipeline);
+    },
+
     destroyPipeline(pipelineToken) {
         requireResource(pipelineToken, "pipeline");
         resources.delete(pipelineToken);
