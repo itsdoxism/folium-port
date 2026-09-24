@@ -24,6 +24,19 @@ TARGETS = {
         ("grabMouse", "(Lcom/mojang/blaze3d/platform/Window;DD)V"),
         ("releaseMouse", "(Lcom/mojang/blaze3d/platform/Window;DD)V"),
     },
+    "com/mojang/blaze3d/platform/TextInputManager.class": {
+        ("<init>", "(Lcom/mojang/blaze3d/platform/Window;)V"),
+        ("setTextInputArea", "(IIII)V"),
+        ("applyTextInputArea", "()V"),
+        ("startTextInput", "(Ljava/lang/Object;)V"),
+        ("stopTextInput", "(Ljava/lang/Object;)V"),
+        ("stopTextInput", "()V"),
+        ("onTextInputFocusChange", "(Ljava/lang/Object;Z)V"),
+    },
+    "com/mojang/blaze3d/platform/ClipboardManager.class": {
+        ("getClipboard", "()Ljava/lang/String;"),
+        ("setClipboard", "(Ljava/lang/String;)V"),
+    },
     "com/mojang/blaze3d/platform/Window.class": {
         ("<init>", "(Lcom/mojang/blaze3d/platform/WindowEventHandler;Lcom/mojang/blaze3d/platform/DisplayData;Ljava/lang/String;ZLjava/lang/String;Lcom/mojang/blaze3d/platform/MonitorManager;Lcom/mojang/renderpearl/api/device/GpuBackend;I)V"),
         ("getPlatform", "()Ljava/lang/String;"),
