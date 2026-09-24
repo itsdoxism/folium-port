@@ -2,12 +2,11 @@ package dev.folium.render.webgpu;
 
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.textures.GpuTexture;
+import dev.folium.platform.GraphicsHost;
 
-/**
- * Metadata-first texture used while Folium wires RenderPearl resources to
- * browser WebGPU objects.
- */
 public final class FoliumGpuTexture implements GpuTexture {
+    private final GraphicsHost graphics;
+    private final int token;
     private final String label;
     private final int usage;
     private final GpuFormat format;
@@ -15,9 +14,12 @@ public final class FoliumGpuTexture implements GpuTexture {
     private final int height;
     private final int depthOrLayers;
     private final int mipLevels;
+
     private boolean closed;
 
-    public FoliumGpuTexture(
+    FoliumGpuTexture(
+        GraphicsHost graphics,
+        int token,
         String label,
         int usage,
         GpuFormat format,
@@ -26,6 +28,8 @@ public final class FoliumGpuTexture implements GpuTexture {
         int depthOrLayers,
         int mipLevels
     ) {
+        this.graphics = graphics;
+        this.token = token;
         this.label = label;
         this.usage = usage;
         this.format = format;
@@ -37,12 +41,12 @@ public final class FoliumGpuTexture implements GpuTexture {
 
     @Override
     public int getWidth(int mipLevel) {
-        return mipDimension(width, mipLevel);
+        return mipSize(width, mipLevel);
     }
 
     @Override
     public int getHeight(int mipLevel) {
-        return mipDimension(height, mipLevel);
+        return mipSize(height, mipLevel);
     }
 
     @Override
@@ -77,13 +81,23 @@ public final class FoliumGpuTexture implements GpuTexture {
 
     @Override
     public void close() {
-        closed = true;
+        if (!closed) {
+            graphics.destroyTexture(token);
+            closed = true;
+        }
     }
 
-    private static int mipDimension(int value, int mipLevel) {
+    int token() {
+        if (closed) {
+            throw new IllegalStateException("Folium texture is closed");
+        }
+        return token;
+    }
+
+    private static int mipSize(int base, int mipLevel) {
         if (mipLevel < 0) {
             throw new IllegalArgumentException("Negative mip level");
         }
-        return Math.max(1, value >> Math.min(mipLevel, 30));
+        return Math.max(1, base >> mipLevel);
     }
 }
