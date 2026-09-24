@@ -49,7 +49,13 @@ public final class FoliumRenderPass implements RenderPass {
 
     @Override
     public void setPipeline(CompiledRenderPipeline pipeline) {
-        throw unsupported("setPipeline");
+        ensureOpen();
+        if (!(pipeline instanceof FoliumCompiledRenderPipeline foliumPipeline)) {
+            throw new IllegalArgumentException(
+                "Folium render pass received a non-Folium pipeline"
+            );
+        }
+        graphics.setRenderPassPipeline(token, foliumPipeline.token());
     }
 
     @Override
@@ -148,7 +154,14 @@ public final class FoliumRenderPass implements RenderPass {
         int firstVertex,
         int firstInstance
     ) {
-        throw unsupported("draw");
+        ensureOpen();
+        graphics.drawRenderPass(
+            token,
+            vertexCount,
+            instanceCount,
+            firstVertex,
+            firstInstance
+        );
     }
 
     @Override
