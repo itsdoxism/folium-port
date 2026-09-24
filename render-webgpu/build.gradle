@@ -14,6 +14,7 @@ def minecraftJar = providers.gradleProperty("minecraftJar")
 if (minecraftJar.isPresent()) {
     dependencies {
         compileOnly files(minecraftJar.get())
+        compileOnly "org.joml:joml:1.10.9"
     }
 } else {
     tasks.withType(JavaCompile).configureEach {
