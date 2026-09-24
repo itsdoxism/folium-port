@@ -57,6 +57,9 @@ public final class FoliumPatcher {
     private static final String MINECRAFT =
         "net/minecraft/client/Minecraft.class";
 
+    private static final String PIPELINE_BUILDER =
+        "com/mojang/renderpearl/frontend/shaders/PipelineBuilder.class";
+
     private FoliumPatcher() {
     }
 
@@ -132,6 +135,9 @@ public final class FoliumPatcher {
                 } else if (MINECRAFT.equals(entryName)) {
                     data = patchMinecraft(data);
                     patched.add(MINECRAFT);
+                } else if (PIPELINE_BUILDER.equals(entryName)) {
+                    data = patchPipelineBuilder(data);
+                    patched.add(PIPELINE_BUILDER);
                 }
 
                 zout.write(data);
@@ -151,6 +157,7 @@ public final class FoliumPatcher {
                 || !patched.contains(SDL_EVENT_HANDLER)
                 || !patched.contains(TEXT_INPUT_MANAGER)
                 || !patched.contains(MINECRAFT)
+                || !patched.contains(PIPELINE_BUILDER)
         ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
@@ -169,6 +176,7 @@ public final class FoliumPatcher {
         System.out.println("  ✓ Window browser shell");
         System.out.println("  ✓ SDLEventHandler polling bypass");
         System.out.println("  ✓ TextInputManager SDL bypass");
+        System.out.println("  ✓ PipelineBuilder native shaderc bypass");
 
         for (String signature : strippedSignatures) {
             System.out.println("  ✓ stripped stale JAR signature: " + signature);
@@ -224,6 +232,78 @@ public final class FoliumPatcher {
 
         method.maxStack = 4;
         method.maxLocals = 1;
+
+        return write(node);
+    }
+
+    private static byte[] patchPipelineBuilder(byte[] original) {
+        ClassNode node = read(original);
+
+        MethodNode constructor = requireMethod(
+            node,
+            "<init>",
+            "(Lcom/mojang/renderpearl/backend/api/GpuDeviceBackend;)V"
+        );
+        clearMethod(constructor);
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "java/lang/Object",
+            "<init>",
+            "()V",
+            false
+        ));
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        constructor.instructions.add(new FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/renderpearl/frontend/shaders/PipelineBuilder",
+            "backendDevice",
+            "Lcom/mojang/renderpearl/backend/api/GpuDeviceBackend;"
+        ));
+        constructor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        constructor.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+        constructor.instructions.add(new FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/renderpearl/frontend/shaders/PipelineBuilder",
+            "compiler",
+            "Lcom/mojang/renderpearl/frontend/shaders/GlslCompiler;"
+        ));
+        constructor.instructions.add(new InsnNode(Opcodes.RETURN));
+        constructor.maxStack = 2;
+        constructor.maxLocals = 2;
+
+        MethodNode close = requireMethod(node, "close", "()V");
+        clearMethod(close);
+        close.instructions.add(new InsnNode(Opcodes.RETURN));
+        close.maxStack = 0;
+        close.maxLocals = 1;
+
+        MethodNode compilePipeline = requireMethod(
+            node,
+            "compilePipeline",
+            "(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;"
+                + "Lcom/mojang/renderpearl/api/pipeline/ShaderSource;"
+                + "Ljava/util/concurrent/Executor;)"
+                + "Ljava/util/concurrent/CompletableFuture;"
+        );
+        clearMethod(compilePipeline);
+        compilePipeline.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        compilePipeline.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        compilePipeline.instructions.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        compilePipeline.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumPipelineCompiler",
+            "compile",
+            "(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;"
+                + "Lcom/mojang/renderpearl/api/pipeline/ShaderSource;"
+                + "Ljava/util/concurrent/Executor;)"
+                + "Ljava/util/concurrent/CompletableFuture;",
+            false
+        ));
+        compilePipeline.instructions.add(new InsnNode(Opcodes.ARETURN));
+        compilePipeline.maxStack = 3;
+        compilePipeline.maxLocals = 4;
 
         return write(node);
     }
