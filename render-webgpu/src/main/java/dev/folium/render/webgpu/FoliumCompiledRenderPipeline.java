@@ -29,6 +29,17 @@ public final class FoliumCompiledRenderPipeline implements CompiledRenderPipelin
         );
     }
 
+    public static FoliumCompiledRenderPipeline vertexColor(
+        GraphicsHost graphics,
+        String layoutJson,
+        String colorFormat
+    ) {
+        return new FoliumCompiledRenderPipeline(
+            graphics,
+            graphics.createVertexColorPipeline(layoutJson, colorFormat)
+        );
+    }
+
     @Override
     public boolean isClosed() {
         return closed;
