@@ -82,6 +82,9 @@ TARGETS = {
         ("setFullscreenMenuVisibility", "(Z)V"),
         ("setCtrlClickEmulatesRightClick", "(Z)V"),
     },
+    "net/minecraft/client/multiplayer/ClientHandshakePacketListenerImpl.class": {
+        ("setEncryption", "(Lnet/minecraft/network/protocol/login/ServerboundKeyPacket;Ljavax/crypto/Cipher;Ljavax/crypto/Cipher;)V"),
+    },
     "net/minecraft/network/Connection.class": {
         ("connectToServer", "(Ljava/net/InetSocketAddress;Lnet/minecraft/server/network/EventLoopGroupHolder;Lnet/minecraft/util/debugchart/LocalSampleLogger;)Lnet/minecraft/network/Connection;"),
         ("setupInboundProtocol", "(Lnet/minecraft/network/ProtocolInfo;Lnet/minecraft/network/PacketListener;)V"),
@@ -99,6 +102,7 @@ TARGETS = {
         ("setReadOnly", "()V"),
         ("isMemoryConnection", "()Z"),
         ("setupCompression", "(IZ)V"),
+        ("setEncryptionKey", "(Ljavax/crypto/Cipher;Ljavax/crypto/Cipher;)V"),
     },
     "com/mojang/blaze3d/platform/Window.class": {
         ("<init>", "(Lcom/mojang/blaze3d/platform/WindowEventHandler;Lcom/mojang/blaze3d/platform/DisplayData;Ljava/lang/String;ZLjava/lang/String;Lcom/mojang/blaze3d/platform/MonitorManager;Lcom/mojang/renderpearl/api/device/GpuBackend;I)V"),
