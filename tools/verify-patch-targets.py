@@ -37,6 +37,22 @@ TARGETS = {
         ("getClipboard", "()Ljava/lang/String;"),
         ("setClipboard", "(Ljava/lang/String;)V"),
     },
+    "com/mojang/blaze3d/platform/Monitor.class": {
+        ("tryCreate", "(I)Lcom/mojang/blaze3d/platform/Monitor;"),
+        ("queryMonitorName", "(I)Ljava/lang/String;"),
+    },
+    "com/mojang/blaze3d/platform/MonitorManager.class": {
+        ("<init>", "()V"),
+        ("onDisplayConnected", "(I)V"),
+        ("onDisplayDisconnected", "(I)V"),
+        ("onDisplayModeChanged", "(I)V"),
+        ("addDisplay", "(I)Lcom/mojang/blaze3d/platform/Monitor;"),
+        ("getMonitor", "(I)Lcom/mojang/blaze3d/platform/Monitor;"),
+        ("findBestMonitor", "(Lcom/mojang/blaze3d/platform/Window;)Lcom/mojang/blaze3d/platform/Monitor;"),
+    },
+    "com/mojang/blaze3d/platform/VideoMode.class": {
+        ("<init>", "(Lorg/lwjgl/sdl/SDL_DisplayMode;)V"),
+    },
     "com/mojang/blaze3d/platform/Window.class": {
         ("<init>", "(Lcom/mojang/blaze3d/platform/WindowEventHandler;Lcom/mojang/blaze3d/platform/DisplayData;Ljava/lang/String;ZLjava/lang/String;Lcom/mojang/blaze3d/platform/MonitorManager;Lcom/mojang/renderpearl/api/device/GpuBackend;I)V"),
         ("getPlatform", "()Ljava/lang/String;"),
