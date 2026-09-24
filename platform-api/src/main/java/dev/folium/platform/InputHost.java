@@ -12,4 +12,8 @@ public interface InputHost {
     double wheelDeltaX();
 
     double wheelDeltaY();
+
+    InputEvent pollEvent();
+
+    void clearEvents();
 }
