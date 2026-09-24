@@ -13,6 +13,9 @@ public final class FoliumNetworkSession implements AutoCloseable {
     private ProtocolInfo<?> inboundProtocol;
     private ProtocolInfo<?> outboundProtocol;
 
+    private int compressionThreshold = -1;
+    private boolean validateDecompressed = true;
+
     public FoliumNetworkSession(String endpoint) {
         this.transport = FoliumRuntime.platform()
             .network()
@@ -49,6 +52,18 @@ public final class FoliumNetworkSession implements AutoCloseable {
         return outboundProtocol;
     }
 
+    public void setupCompression(
+        int threshold,
+        boolean validateDecompressed
+    ) {
+        this.compressionThreshold = threshold;
+        this.validateDecompressed = validateDecompressed;
+    }
+
+    public int compressionThreshold() {
+        return compressionThreshold;
+    }
+
     public void send(Packet<?> packet) {
         ProtocolInfo<?> protocol = outboundProtocol;
 
@@ -58,7 +73,17 @@ public final class FoliumNetworkSession implements AutoCloseable {
             );
         }
 
-        transport.send(FoliumPacketCodec.encode(protocol, packet));
+        byte[] packetPayload = FoliumPacketCodec.encode(
+            protocol,
+            packet
+        );
+
+        transport.send(
+            FoliumCompressionCodec.encode(
+                packetPayload,
+                compressionThreshold
+            )
+        );
     }
 
     public Packet<?> pollPacket() {
@@ -75,7 +100,16 @@ public final class FoliumNetworkSession implements AutoCloseable {
             );
         }
 
-        return FoliumPacketCodec.decode(protocol, payload);
+        byte[] packetPayload = FoliumCompressionCodec.decode(
+            payload,
+            compressionThreshold,
+            validateDecompressed
+        );
+
+        return FoliumPacketCodec.decode(
+            protocol,
+            packetPayload
+        );
     }
 
     @Override
