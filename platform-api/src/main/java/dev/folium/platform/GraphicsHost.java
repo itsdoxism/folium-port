@@ -15,7 +15,6 @@ public interface GraphicsHost {
 
     int createBuffer(String label, int usage, long size);
     void writeBuffer(int bufferToken, long offset, ByteBuffer data);
-    int createBootstrapTriangleIndexBuffer();
     void destroyBuffer(int bufferToken);
 
     int createCommandEncoder();
