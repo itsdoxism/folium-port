@@ -47,4 +47,33 @@ public final class BrowserWindowHost implements WindowHost {
     @Override
     @JSBody(params = {"title"}, script = "document.title = title || 'Folium';")
     public native void setTitle(String title);
+
+    @Override
+    @JSBody(params = {"uri"}, script = """
+        try {
+            const opened = globalThis.open(uri, '_blank', 'noopener,noreferrer');
+            if (!opened) {
+                console.warn('Folium: browser blocked external URI', uri);
+            }
+        } catch (error) {
+            console.warn('Folium: failed to open external URI', uri, error);
+        }
+    """)
+    public native void openExternal(String uri);
+
+    @Override
+    @JSBody(params = {"message"}, script = """
+        globalThis.alert?.(message || 'Minecraft error');
+    """)
+    public native void showError(String message);
+
+    @Override
+    @JSBody(params = {"message"}, script = """
+        if (globalThis.confirm) {
+            return !!globalThis.confirm(message || 'Minecraft error');
+        }
+        globalThis.alert?.(message || 'Minecraft error');
+        return true;
+    """)
+    public native boolean showErrorWithContinue(String message);
 }
