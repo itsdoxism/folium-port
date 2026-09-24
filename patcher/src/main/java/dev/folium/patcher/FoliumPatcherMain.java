@@ -677,6 +677,30 @@ public final class FoliumPatcherMain {
         replaceWithReturnVoid(node, "flushChannel", "()V");
         replaceWithReturnVoid(node, "setReadOnly", "()V");
 
+        MethodNode compression = requireMethod(
+            node,
+            "setupCompression",
+            "(IZ)V"
+        );
+        compression.instructions.clear();
+        compression.tryCatchBlocks.clear();
+        if (compression.localVariables != null) {
+            compression.localVariables.clear();
+        }
+        compression.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        compression.instructions.add(new VarInsnNode(Opcodes.ILOAD, 1));
+        compression.instructions.add(new VarInsnNode(Opcodes.ILOAD, 2));
+        compression.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "setupCompression",
+            "(Lnet/minecraft/network/Connection;IZ)V",
+            false
+        ));
+        compression.instructions.add(new InsnNode(Opcodes.RETURN));
+        compression.maxStack = 3;
+        compression.maxLocals = 3;
+
         MethodNode memory = requireMethod(node, "isMemoryConnection", "()Z");
         memory.instructions.clear();
         memory.tryCatchBlocks.clear();
@@ -689,6 +713,7 @@ public final class FoliumPatcherMain {
         applied.add("Connection protocol setup: replace Netty pipeline mutation");
         applied.add("Connection send/tick/disconnect: FoliumNetworkSession bridge");
         applied.add("Connection status/flush/read-only: browser transport semantics");
+        applied.add("Connection.setupCompression: Folium session compression state");
 
         return write(node);
     }
