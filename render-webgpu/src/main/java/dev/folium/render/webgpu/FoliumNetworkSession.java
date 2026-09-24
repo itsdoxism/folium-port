@@ -23,6 +23,10 @@ public final class FoliumNetworkSession implements AutoCloseable {
         return transport.isOpen();
     }
 
+    public boolean isClosed() {
+        return transport.isClosed();
+    }
+
     public void setInboundProtocol(ProtocolInfo<?> protocol) {
         this.inboundProtocol = Objects.requireNonNull(
             protocol,
