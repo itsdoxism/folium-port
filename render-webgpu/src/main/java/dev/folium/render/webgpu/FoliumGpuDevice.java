@@ -99,10 +99,17 @@ public final class FoliumGpuDevice implements GpuDevice {
         FilterMode minFilter,
         FilterMode magFilter,
         int maxAnisotropy,
-        OptionalDouble lodBias
+        OptionalDouble maxLod
     ) {
         ensureOpen();
-        throw unsupported("createSampler");
+        return new FoliumGpuSampler(
+            addressModeU,
+            addressModeV,
+            minFilter,
+            magFilter,
+            maxAnisotropy,
+            maxLod
+        );
     }
 
     @Override
