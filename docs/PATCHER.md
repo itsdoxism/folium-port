@@ -20,6 +20,9 @@ Blaze3D.getTime            -> browser clock
 CursorType                 -> browser-safe opaque cursors
 InputQuirks                -> no SDL modifier polling
 MouseHandler.resync        -> browser pointer state
+Blaze3D.openUri/openPath   -> browser external navigation
+MessageBox                 -> browser dialogs
+MacosUtil                  -> browser no-op
 ```
 
 ## Verification
@@ -36,14 +39,6 @@ Target drift aborts patch generation rather than producing a partially compatibl
 
 The official client JAR is signed. Folium removes invalidated signature metadata and emits a clean local launch manifest after transformation.
 
-## Remaining utility cleanup
+## Next major subsystem
 
-The main SDL shell is now redirected. Remaining browser-utility targets include:
-
-```text
-Blaze3D.openUri
-MessageBox
-MacosUtil
-```
-
-These are lower risk than the earlier boot blockers and can be replaced with browser-native behavior in a focused utility patch pass.
+The desktop SDL shell is no longer the primary blocker. The next large browser boundary is Netty/TCP networking, followed by the remaining WebGPU pipeline/binding completeness work.
