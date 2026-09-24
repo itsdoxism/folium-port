@@ -4,8 +4,6 @@ import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,7 +14,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class FoliumGatewayServer extends WebSocketServer {
-    private static final int MAX_PACKET_SIZE = 8 * 1024 * 1024;
+    private static final int READ_BUFFER_SIZE = 64 * 1024;
 
     private final String backendHost;
     private final int backendPort;
@@ -46,6 +44,7 @@ public final class FoliumGatewayServer extends WebSocketServer {
                 backendHost,
                 backendPort
             );
+
             sessions.put(conn, session);
             session.start();
         } catch (Exception error) {
@@ -57,15 +56,16 @@ public final class FoliumGatewayServer extends WebSocketServer {
     @Override
     public void onMessage(WebSocket conn, ByteBuffer message) {
         Session session = sessions.get(conn);
+
         if (session == null) {
             conn.close(1011, "Folium gateway session missing");
             return;
         }
 
         try {
-            byte[] payload = new byte[message.remaining()];
-            message.get(payload);
-            session.sendPacket(payload);
+            byte[] bytes = new byte[message.remaining()];
+            message.get(bytes);
+            session.write(bytes);
         } catch (IOException error) {
             conn.close(1011, "Folium TCP write failed");
         }
@@ -104,7 +104,7 @@ public final class FoliumGatewayServer extends WebSocketServer {
     @Override
     public void onStart() {
         System.out.println(
-            "Folium gateway listening on ws://" +
+            "Folium raw TCP gateway listening on ws://" +
                 getAddress().getHostString() +
                 ":" +
                 getAddress().getPort() +
@@ -145,8 +145,8 @@ public final class FoliumGatewayServer extends WebSocketServer {
             tcpSocket.setTcpNoDelay(true);
             tcpSocket.setKeepAlive(true);
 
-            in = new BufferedInputStream(tcpSocket.getInputStream());
-            out = new BufferedOutputStream(tcpSocket.getOutputStream());
+            in = tcpSocket.getInputStream();
+            out = tcpSocket.getOutputStream();
 
             reader = new Thread(
                 this::readLoop,
@@ -156,42 +156,33 @@ public final class FoliumGatewayServer extends WebSocketServer {
             reader.start();
         }
 
-        synchronized void sendPacket(byte[] payload) throws IOException {
+        synchronized void write(byte[] bytes) throws IOException {
             if (closed) {
                 throw new IOException("Folium gateway session closed");
             }
 
-            if (payload.length > MAX_PACKET_SIZE) {
-                throw new IOException(
-                    "Folium packet exceeds maximum size"
-                );
-            }
-
-            VarInt.write(out, payload.length);
-            out.write(payload);
+            out.write(bytes);
             out.flush();
         }
 
         private void readLoop() {
+            byte[] buffer = new byte[READ_BUFFER_SIZE];
+
             try {
                 while (!closed) {
-                    int length = VarInt.read(in);
+                    int read = in.read(buffer);
 
-                    if (length < 0 || length > MAX_PACKET_SIZE) {
-                        throw new IOException(
-                            "Invalid Minecraft packet length: " + length
-                        );
+                    if (read < 0) {
+                        break;
                     }
 
-                    byte[] payload = in.readNBytes(length);
-
-                    if (payload.length != length) {
-                        throw new IOException(
-                            "EOF inside Minecraft packet"
-                        );
+                    if (read == 0) {
+                        continue;
                     }
 
-                    webSocket.send(payload);
+                    byte[] chunk = new byte[read];
+                    System.arraycopy(buffer, 0, chunk, 0, read);
+                    webSocket.send(chunk);
                 }
             } catch (Exception error) {
                 if (!closed && webSocket.isOpen()) {
