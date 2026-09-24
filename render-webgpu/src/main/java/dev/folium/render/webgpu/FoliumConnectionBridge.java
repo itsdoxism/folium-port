@@ -32,6 +32,14 @@ public final class FoliumConnectionBridge {
             ":" +
             address.getPort();
 
+        FoliumNetworkTrace.stage("CONNECT");
+        FoliumNetworkTrace.event(
+            "remote=" +
+                address.getHostString() +
+                ":" +
+                address.getPort()
+        );
+
         FoliumNetworkSession session = new FoliumNetworkSession(endpoint);
         session.setOutboundProtocol(HandshakeProtocols.SERVERBOUND);
 
@@ -42,6 +50,9 @@ public final class FoliumConnectionBridge {
         Connection connection,
         ProtocolInfo<?> protocol
     ) {
+        FoliumNetworkTrace.stage(
+            "INBOUND_PROTOCOL_" + protocol.id()
+        );
         require(connection).session.setInboundProtocol(protocol);
     }
 
@@ -49,6 +60,9 @@ public final class FoliumConnectionBridge {
         Connection connection,
         ProtocolInfo<?> protocol
     ) {
+        FoliumNetworkTrace.stage(
+            "OUTBOUND_PROTOCOL_" + protocol.id()
+        );
         require(connection).session.setOutboundProtocol(protocol);
     }
 
@@ -56,6 +70,9 @@ public final class FoliumConnectionBridge {
         Connection connection,
         Packet<?> packet
     ) {
+        FoliumNetworkTrace.event(
+            "send " + packet.type()
+        );
         require(connection).session.send(packet);
     }
 
@@ -64,6 +81,9 @@ public final class FoliumConnectionBridge {
         int threshold,
         boolean validateDecompressed
     ) {
+        FoliumNetworkTrace.stage(
+            "COMPRESSION_" + threshold
+        );
         require(connection).session.setupCompression(
             threshold,
             validateDecompressed
@@ -75,6 +95,7 @@ public final class FoliumConnectionBridge {
         javax.crypto.Cipher decryptCipher,
         javax.crypto.Cipher encryptCipher
     ) {
+        FoliumNetworkTrace.stage("ENCRYPTION_ENABLED");
         require(connection).session.setEncryptionKey(
             decryptCipher,
             encryptCipher
@@ -112,6 +133,10 @@ public final class FoliumConnectionBridge {
             if (packet == null) {
                 break;
             }
+
+            FoliumNetworkTrace.event(
+                "recv " + packet.type()
+            );
 
             handled++;
 
