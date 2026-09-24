@@ -145,29 +145,33 @@ globalThis.__foliumWebGpuBridge = {
             throw new Error("Folium writeBuffer expected an ArrayBufferView");
         }
 
+        const destinationOffset = Number(offset);
+        if (destinationOffset % 4 !== 0) {
+            throw new Error("Folium WebGPU buffer writes require 4-byte aligned offsets");
+        }
+
+        if (data.byteLength % 4 === 0) {
+            foliumHostState.device.queue.writeBuffer(
+                buffer,
+                destinationOffset,
+                data.buffer,
+                data.byteOffset,
+                data.byteLength
+            );
+            return;
+        }
+
+        // WebGPU writeBuffer requires a 4-byte-sized write. Pad only the rare
+        // unaligned tail while preserving the Java buffer bytes exactly.
+        const paddedLength = (data.byteLength + 3) & ~3;
+        const padded = new Uint8Array(paddedLength);
+        padded.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+
         foliumHostState.device.queue.writeBuffer(
             buffer,
-            Number(offset),
-            data.buffer,
-            data.byteOffset,
-            data.byteLength
+            destinationOffset,
+            padded
         );
-    },
-
-    createBootstrapTriangleIndexBuffer() {
-        const buffer = foliumHostState.device.createBuffer({
-            label: "Folium bootstrap triangle indices",
-            size: 8,
-            usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST
-        });
-
-        foliumHostState.device.queue.writeBuffer(
-            buffer,
-            0,
-            new Uint16Array([0, 1, 2])
-        );
-
-        return storeResource("buffer", buffer);
     },
 
     destroyBuffer(bufferToken) {
