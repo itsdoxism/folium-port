@@ -12,4 +12,10 @@ public interface WindowHost {
     void releasePointerLock();
 
     void setTitle(String title);
+
+    void openExternal(String uri);
+
+    void showError(String message);
+
+    boolean showErrorWithContinue(String message);
 }
