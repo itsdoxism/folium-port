@@ -1,12 +1,8 @@
 # Folium WebSocket gateway
 
-The Folium browser client cannot open a raw Minecraft TCP socket.
-
-The gateway accepts binary WebSocket messages and forwards them to one configured Minecraft backend.
+The Folium browser client cannot open a raw Minecraft TCP socket, so the gateway provides a same-origin WebSocket tunnel to one fixed Minecraft backend.
 
 ## Fixed backend
-
-The gateway intentionally does not accept arbitrary `host` or `port` query parameters.
 
 Configure the backend server-side:
 
@@ -15,7 +11,7 @@ FOLIUM_BACKEND_HOST=127.0.0.1
 FOLIUM_BACKEND_PORT=25565
 ```
 
-This prevents the gateway from becoming an open TCP proxy.
+The browser cannot choose arbitrary TCP targets.
 
 ## Listen address
 
@@ -30,46 +26,45 @@ The WebSocket endpoint is:
 /folium-gateway
 ```
 
-In production, reverse-proxy that path from the same origin that serves Folium.
+## Raw byte tunnel
 
-## Framing
+The gateway no longer parses Minecraft packet framing.
 
-The gateway only owns the **outer Minecraft TCP packet length**.
+Each browser WebSocket binary message is simply a chunk of the Minecraft TCP byte stream.
 
 Outbound:
 
 ```text
-WebSocket message
-    -> VarInt frame length
-    -> message bytes
-    -> Minecraft TCP stream
+browser TCP-stream bytes
+    -> WebSocket binary message
+    -> gateway writes bytes directly to backend TCP socket
 ```
 
-Inbound reverses that process.
-
-The gateway does not parse packet IDs and does not need to know the current Minecraft protocol state.
-
-## Compression boundary
-
-When Minecraft login enables compression, the WebSocket message itself becomes Minecraft's compression envelope:
+Inbound:
 
 ```text
-VarInt uncompressedLength
-compressed-or-raw packet payload
+backend TCP bytes
+    -> gateway reads arbitrary chunk
+    -> one WebSocket binary message
+    -> browser stream accumulator
 ```
 
-Folium handles that envelope in `FoliumNetworkSession`.
+Minecraft outer VarInt framing, compression envelopes and encryption are all handled by the browser-side `FoliumNetworkSession`.
 
-The gateway still sees only opaque message bytes and continues to add/remove the outer TCP frame length.
+## Why raw tunneling matters
 
-This keeps compression negotiation synchronized with the patched Minecraft `Connection.setupCompression(int, boolean)` method without making the gateway protocol-aware.
+Minecraft online-mode encryption uses AES/CFB8 over the entire TCP stream, including the outer packet-length VarInt.
 
-## Packet size guard
+A gateway that parses VarInt frames would lose packet boundaries as soon as encryption starts.
 
-The current maximum outer framed message size is 8 MiB.
+Keeping the gateway byte-transparent means it does not need to know:
 
-## Encryption
+- protocol state;
+- packet IDs;
+- compression thresholds;
+- encryption state;
+- login transitions.
 
-Online-mode login can negotiate stream encryption. That transition is not implemented yet.
+## Deployment
 
-The next networking boundary is deciding whether encryption terminates in the browser or in a trusted gateway-side login bridge.
+In production, reverse-proxy `/folium-gateway` from the same origin that serves the Folium browser client to the gateway process.
