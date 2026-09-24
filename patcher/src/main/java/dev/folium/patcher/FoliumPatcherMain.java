@@ -517,11 +517,40 @@ public final class FoliumPatcherMain {
 
         replaceWithReturnVoid(node, "setWindowMaxSize", "(II)V");
         replaceWithReturnVoid(node, "close", "()V");
+        replaceWithReturnVoid(
+            node,
+            "setIcon",
+            "(Lnet/minecraft/server/packs/PackMetadataResources;" +
+                "Lcom/mojang/blaze3d/platform/IconSet;)V"
+        );
+        replaceWithReturnVoid(node, "updateFullscreenIfChanged", "()V");
+        replaceWithReturnVoid(node, "changeFullscreenVideoMode", "()V");
+        replaceWithReturnVoid(
+            node,
+            "selectCursor",
+            "(Lcom/mojang/blaze3d/platform/cursor/CursorType;)V"
+        );
+
+        MethodNode setFullscreen = requireMethod(node, "setFullscreen", "(Z)V");
+        setFullscreen.instructions.clear();
+        setFullscreen.tryCatchBlocks.clear();
+        setFullscreen.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        setFullscreen.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        setFullscreen.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "com/mojang/blaze3d/platform/Window",
+            "fullscreenRequested",
+            "Z"
+        ));
+        setFullscreen.instructions.add(new InsnNode(Opcodes.RETURN));
+        setFullscreen.maxStack = 2;
+        setFullscreen.maxLocals = 2;
 
         applied.add("Window.<init>: replace SDL window construction with browser canvas state");
         applied.add("Window.getPlatform/queryFramebufferSize/setTitle: browser host bridge");
         applied.add("Window.refreshFramebufferSize: browser canvas dimensions");
-        applied.add("Window.close/setWindowMaxSize: remove SDL calls");
+        applied.add("Window.close/setWindowMaxSize/setIcon: remove SDL calls");
+        applied.add("Window fullscreen/cursor startup paths: browser-safe no-op");
 
         return write(node);
     }
