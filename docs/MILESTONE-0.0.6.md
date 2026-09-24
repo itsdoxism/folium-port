@@ -1,54 +1,86 @@
-# Milestone 0.0.6 — bootstrap GPU resources
+# Milestone 0.0.6 — first RenderPearl wrappers
 
-Minecraft 26.3 initializes GPU-side support objects before creating the main
-window.
+Folium now crosses the first real Minecraft rendering API boundary.
 
-The observed order is:
+## Implemented
 
-```text
-RenderSystem.initRenderer(device)
-        |
-        +-- DynamicGpuData()
-        |      |
-        |      +-- MappableRingBuffer
-        |              |
-        |              +-- GpuDevice.createBuffer(...)
-        |
-        +-- SamplerCache.initialize()
-               |
-               +-- GpuDevice.createSampler(...)
-```
-
-Folium now supplies both primitives:
-
-- `FoliumGpuBuffer` — CPU-backed bootstrap buffer with mapped slices;
-- `FoliumGpuSampler` — RenderPearl sampler descriptor.
-
-The CPU buffer is intentionally temporary. Its purpose is to preserve Minecraft
-startup semantics while the WebGPU host bridge is still being built.
-
-## Why CPU-backed first
-
-Minecraft creates several mapped ring buffers during renderer initialization,
-before any actual frame is submitted. A functional Java-side buffer object
-lets the boot path continue without prematurely requiring the complete WebGPU
-command/upload implementation.
-
-Later, `MappedView.close()` becomes the natural dirty-range upload point for
-WebGPU buffers.
-
-## Next expected boundary
-
-After renderer bootstrap succeeds, Minecraft proceeds through:
+`FoliumWebGpuBackend.createDevice()` now returns a real Java object that
+implements Minecraft 26.3's `GpuDevice` interface:
 
 ```text
-DeviceInfo
-Window
-GpuSurface
-SDLEventHandler
-TextInputManager
-MouseHandler / KeyboardHandler
+GpuBackend
+   |
+   v
+FoliumWebGpuBackend
+   |
+   v
+FoliumGpuDevice
+   |
+   v
+FoliumGpuSurface
 ```
 
-The first real rendering/resource initialization after that is expected to
-require textures, command encoders, and pipeline/shader compilation.
+The surface currently implements:
+
+- configuration state;
+- current configuration;
+- a conservative FIFO presentation mode;
+- acquire/present lifecycle state;
+- close lifecycle.
+
+The remaining GPU operations fail explicitly instead of silently pretending to
+work.
+
+## Why explicit failure is useful
+
+At this stage we want the first Minecraft renderer boot attempt to stop at the
+**first genuinely missing GPU operation**.
+
+That turns the port into an incremental process:
+
+```text
+boot
+  -> first missing call
+  -> implement that WebGPU contract
+  -> boot again
+  -> next missing call
+```
+
+instead of attempting hundreds of RenderPearl methods speculatively.
+
+## Exact 26.3 GpuDevice surface
+
+The client interface includes:
+
+- `createSurface`
+- `createCommandEncoder`
+- `createSampler`
+- `createTexture`
+- `createTextureView`
+- `createBuffer`
+- debug message access
+- `compilePipeline`
+- timestamp query pools
+- device info
+- lifecycle close
+
+## Important next dependency
+
+A visible RenderPearl-driven frame requires `CommandEncoder`, and that
+interface immediately reaches:
+
+- render passes;
+- texture clears;
+- buffer copies/writes;
+- texture uploads;
+- fences/query pools.
+
+So the next practical implementation is not the entire encoder. It is:
+
+1. a host command-encoder token;
+2. `clearColorTexture`;
+3. `submit`;
+4. a minimal texture/view wrapper for the current canvas texture.
+
+That is enough to prove a RenderPearl call can cause a real WebGPU command
+submission.
