@@ -60,6 +60,22 @@ function toWebGpuTextureUsage(renderPearlUsage) {
         GPUTextureUsage.RENDER_ATTACHMENT;
 }
 
+function toWebGpuBufferUsage(renderPearlUsage) {
+    let usage = 0;
+
+    if (renderPearlUsage & 1) usage |= GPUBufferUsage.MAP_READ;
+    if (renderPearlUsage & 2) usage |= GPUBufferUsage.MAP_WRITE;
+    if (renderPearlUsage & 8) usage |= GPUBufferUsage.COPY_DST;
+    if (renderPearlUsage & 16) usage |= GPUBufferUsage.COPY_SRC;
+    if (renderPearlUsage & 32) usage |= GPUBufferUsage.VERTEX;
+    if (renderPearlUsage & 64) usage |= GPUBufferUsage.INDEX;
+    if (renderPearlUsage & 128) usage |= GPUBufferUsage.UNIFORM;
+    if (renderPearlUsage & 512) usage |= GPUBufferUsage.INDIRECT;
+
+    if (usage === 0) usage = GPUBufferUsage.COPY_DST;
+    return usage;
+}
+
 globalThis.__foliumHostState = foliumHostState;
 
 globalThis.__foliumWebGpuBridge = {
@@ -101,6 +117,48 @@ globalThis.__foliumWebGpuBridge = {
     releaseTextureView(textureViewToken) {
         requireResource(textureViewToken, "textureView");
         resources.delete(textureViewToken);
+    },
+
+    createBuffer(label, usage, size) {
+        if (!foliumHostState.deviceReady) {
+            throw new Error("Folium WebGPU device is not ready");
+        }
+
+        const numericSize = Number(size);
+        if (!Number.isSafeInteger(numericSize) || numericSize <= 0) {
+            throw new Error(`Invalid Folium buffer size: ${size}`);
+        }
+
+        const alignedSize = (numericSize + 3) & ~3;
+        const buffer = foliumHostState.device.createBuffer({
+            label: label || "Folium buffer",
+            size: alignedSize,
+            usage: toWebGpuBufferUsage(usage)
+        });
+
+        return storeResource("buffer", buffer);
+    },
+
+    createBootstrapTriangleIndexBuffer() {
+        const buffer = foliumHostState.device.createBuffer({
+            label: "Folium bootstrap triangle indices",
+            size: 8,
+            usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST
+        });
+
+        foliumHostState.device.queue.writeBuffer(
+            buffer,
+            0,
+            new Uint16Array([0, 1, 2])
+        );
+
+        return storeResource("buffer", buffer);
+    },
+
+    destroyBuffer(bufferToken) {
+        const buffer = requireResource(bufferToken, "buffer");
+        buffer.destroy();
+        resources.delete(bufferToken);
     },
 
     createCommandEncoder() {
@@ -233,6 +291,18 @@ globalThis.__foliumWebGpuBridge = {
         pass.setPipeline(pipeline);
     },
 
+    setRenderPassVertexBuffer(renderPassToken, slot, bufferToken, offset, length) {
+        const pass = requireResource(renderPassToken, "renderPass");
+        const buffer = requireResource(bufferToken, "buffer");
+        pass.setVertexBuffer(slot, buffer, Number(offset), Number(length));
+    },
+
+    setRenderPassIndexBuffer(renderPassToken, bufferToken, indexFormat) {
+        const pass = requireResource(renderPassToken, "renderPass");
+        const buffer = requireResource(bufferToken, "buffer");
+        pass.setIndexBuffer(buffer, indexFormat);
+    },
+
     drawRenderPass(
         renderPassToken,
         vertexCount,
@@ -242,6 +312,18 @@ globalThis.__foliumWebGpuBridge = {
     ) {
         requireResource(renderPassToken, "renderPass")
             .draw(vertexCount, instanceCount, firstVertex, firstInstance);
+    },
+
+    drawIndexedRenderPass(
+        renderPassToken,
+        indexCount,
+        instanceCount,
+        firstIndex,
+        baseVertex,
+        firstInstance
+    ) {
+        requireResource(renderPassToken, "renderPass")
+            .drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
     },
 
     endRenderPass(renderPassToken) {
