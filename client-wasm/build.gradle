@@ -1,0 +1,92 @@
+plugins {
+    id "java"
+    id "org.teavm" version "0.15.0"
+}
+
+def minecraftJar = providers.gradleProperty("minecraftJar")
+    .orElse(providers.environmentVariable("FOLIUM_MINECRAFT_JAR"))
+
+def minecraftLibraries = providers.gradleProperty("minecraftLibraries")
+    .orElse(providers.environmentVariable("FOLIUM_MINECRAFT_LIBRARIES"))
+
+def patchedJar = rootProject.layout.buildDirectory.file(
+    "folium/folium-minecraft-26.3.jar"
+)
+
+def inferLibrariesRoot = {
+    if (minecraftLibraries.isPresent()) {
+        return file(minecraftLibraries.get())
+    }
+
+    if (!minecraftJar.isPresent()) {
+        return null
+    }
+
+    File current = file(minecraftJar.get()).parentFile
+
+    // Pandora layout:
+    // libraries/net/minecraft/26.3/minecraft-client-26.3.jar
+    for (int i = 0; i < 3 && current != null; i++) {
+        current = current.parentFile
+    }
+
+    return current
+}
+
+def librariesRoot = inferLibrariesRoot()
+
+dependencies {
+    implementation project(":platform-api")
+    implementation project(":render-webgpu")
+    implementation project(":minecraft-bridge")
+    implementation teavm.libs.jso
+
+    implementation files(patchedJar)
+
+    if (librariesRoot != null) {
+        implementation fileTree(librariesRoot) {
+            include "**/*.jar"
+
+            // Patched Minecraft replaces the original client.
+            exclude "net/minecraft/**"
+
+            // Native classifier jars contain platform binaries, not the Java
+            // API classes Folium needs for reachability analysis.
+            exclude "**/*natives*.jar"
+            exclude "**/*sources*.jar"
+            exclude "**/*javadoc*.jar"
+        }
+    }
+}
+
+teavm {
+    all {
+        mainClass = "net.minecraft.client.main.Main"
+    }
+
+    wasmGC {
+        targetFileName = "folium-client.wasm"
+        obfuscated = false
+        sourceMap = true
+        copyRuntime = true
+    }
+}
+
+tasks.matching { it.name == "buildWasmGC" }.configureEach {
+    dependsOn(":patcher:patchMinecraft")
+
+    doFirst {
+        if (!minecraftJar.isPresent()) {
+            throw new GradleException(
+                "Folium client build requires FOLIUM_MINECRAFT_JAR or -PminecraftJar"
+            )
+        }
+
+        if (librariesRoot == null || !librariesRoot.isDirectory()) {
+            throw new GradleException(
+                "Minecraft library root was not found. Set " +
+                    "FOLIUM_MINECRAFT_LIBRARIES or -PminecraftLibraries."
+            )
+        }
+    }
+}
