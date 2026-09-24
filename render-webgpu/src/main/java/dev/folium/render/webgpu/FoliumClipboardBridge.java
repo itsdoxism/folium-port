@@ -1,17 +1,16 @@
 package dev.folium.render.webgpu;
 
-import dev.folium.runtime.BrowserClipboardBridge;
+import dev.folium.platform.FoliumRuntime;
 
 public final class FoliumClipboardBridge {
     private FoliumClipboardBridge() {
     }
 
     public static String getClipboard() {
-        BrowserClipboardBridge.refreshClipboard();
-        return BrowserClipboardBridge.getClipboard();
+        return FoliumRuntime.platform().input().getClipboard();
     }
 
     public static void setClipboard(String text) {
-        BrowserClipboardBridge.setClipboard(text);
+        FoliumRuntime.platform().input().setClipboard(text);
     }
 }
