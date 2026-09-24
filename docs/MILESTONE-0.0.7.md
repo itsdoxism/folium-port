@@ -1,46 +1,102 @@
-# Milestone 0.0.7 — render-loop skeleton
+# Milestone 0.0.7 — RenderPearl commands reach WebGPU
 
-Folium can now carry RenderPearl's frontend state through a complete render-pass
-lifecycle without invoking OpenGL/Vulkan/SDL.
+Folium now has its first direct command path from Minecraft 26.3's RenderPearl
+interfaces to browser WebGPU objects.
 
-The temporary flow is:
+## Working path
 
 ```text
-Minecraft UI/world renderer
+GpuDevice.createTexture(...)
         |
-FrontendCommandEncoder
+        v
+FoliumGpuTexture
         |
-FoliumBackendCommandEncoder
+        v
+GraphicsHost.createTexture(...)
         |
-FoliumBackendRenderPass
+        v
+GPUDevice.createTexture(...)
+
+GpuDevice.createCommandEncoder()
         |
-validate state, discard draw
+        v
+FoliumCommandEncoder
+        |
+        +-- clearColorTexture(...)
+        |       |
+        |       v
+        |   WebGPU render pass clear
+        |
+        +-- submit()
+                |
+                v
+        GPUQueue.submit(...)
 ```
 
-## What works
+Browser resources are stored in a small token registry. Minecraft-facing Java
+objects hold only opaque integer tokens, keeping JavaScript/WebGPU object types
+out of the RenderPearl-facing modules.
 
-- pipeline binding;
-- uniform binding;
-- push-constant validation on the RenderPearl frontend;
-- vertex/index buffer binding;
-- scissor state;
-- indexed/non-indexed draw entry points;
-- render-pass creation and submission.
+## Texture support
 
-## What is intentionally missing
+The first bridge recognizes a deliberately small WebGPU-compatible subset of
+Minecraft's `GpuFormat` values, including common color/float/depth formats.
 
-Draw calls do not yet generate WebGPU commands.
+Unsupported formats fail explicitly.
 
-This is useful because it lets Folium separate two questions:
+For this milestone, RenderPearl texture usage flags are not translated
+bit-for-bit yet. The host allocates a safe WebGPU usage superset:
 
-1. **Can Minecraft 26.3 finish client startup without desktop-native APIs?**
-2. **Can Folium reproduce each GPU operation in WebGPU?**
+- COPY_SRC
+- COPY_DST
+- TEXTURE_BINDING
+- RENDER_ATTACHMENT
 
-The first can now be tested much farther before the second is complete.
+This is temporary and should be tightened once the 26.3 usage constants are
+mapped.
 
-## Native type leak
+## CommandEncoder support
 
-RenderPearl exposes one `org.lwjgl.PointerBuffer` overload in its public render
-pass API. The Gradle module currently carries LWJGL only as a compile-time
-signature dependency. A browser-specific type shim or bytecode API patch will
-remove this dependency before the full TeaVM reachability build.
+Implemented:
+
+- `submit()`
+- `clearColorTexture(...)`
+
+Mapped but intentionally unsupported:
+
+- render passes;
+- depth clears;
+- buffer writes/copies;
+- image uploads;
+- texture copies;
+- fences;
+- timestamp queries.
+
+Every unsupported operation throws a named exception so the first Minecraft
+boot attempt identifies the next missing contract precisely.
+
+## Validation note
+
+The uploaded Minecraft 26.3 client targets Java 25 class files. The current
+analysis environment provides JDK 21, so the Minecraft-dependent module cannot
+be fully javac-compiled here against that JAR.
+
+To reduce source-level mismatch risk, Folium's method signatures were checked
+directly against 26.3 class-file descriptors and `MethodParameters` metadata.
+
+## Next milestone
+
+The next useful step is `GpuTextureView` plus a minimal
+`createRenderPass(...)` implementation.
+
+That opens the path from a simple clear command to the render-pass model used
+by Minecraft's real renderer:
+
+```text
+texture
+  -> texture view
+  -> RenderPass
+  -> pipeline/bindings
+  -> draw
+  -> submit
+```
