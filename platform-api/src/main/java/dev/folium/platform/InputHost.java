@@ -16,4 +16,14 @@ public interface InputHost {
     InputEvent pollEvent();
 
     void clearEvents();
+
+    void startTextInput();
+
+    void stopTextInput();
+
+    boolean textInputActive();
+
+    String getClipboard();
+
+    void setClipboard(String text);
 }
