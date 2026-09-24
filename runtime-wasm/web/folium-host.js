@@ -139,6 +139,21 @@ globalThis.__foliumWebGpuBridge = {
         return storeResource("buffer", buffer);
     },
 
+    writeBuffer(bufferToken, offset, data) {
+        const buffer = requireResource(bufferToken, "buffer");
+        if (!data || typeof data.byteLength !== "number") {
+            throw new Error("Folium writeBuffer expected an ArrayBufferView");
+        }
+
+        foliumHostState.device.queue.writeBuffer(
+            buffer,
+            Number(offset),
+            data.buffer,
+            data.byteOffset,
+            data.byteLength
+        );
+    },
+
     createBootstrapTriangleIndexBuffer() {
         const buffer = foliumHostState.device.createBuffer({
             label: "Folium bootstrap triangle indices",
