@@ -60,9 +60,6 @@ public final class FoliumWebGpuBackend implements GpuBackend {
             );
         }
 
-        throw new BackendCreationException(
-            "Folium WebGPU host is ready, but GpuDevice wrapper is not implemented yet",
-            BackendCreationException.Reason.OTHER
-        );
+        return new FoliumGpuDevice(graphics);
     }
 }
