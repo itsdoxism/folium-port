@@ -50,6 +50,16 @@ public final class FoliumPatcherMain {
         "com/mojang/blaze3d/platform/MonitorManager.class";
     private static final String VIDEO_MODE =
         "com/mojang/blaze3d/platform/VideoMode.class";
+    private static final String NATIVE_LIBRARIES_BOOTSTRAP =
+        "com/mojang/blaze3d/platform/NativeLibrariesBootstrap.class";
+    private static final String BLAZE3D =
+        "com/mojang/blaze3d/Blaze3D.class";
+    private static final String CURSOR_TYPE =
+        "com/mojang/blaze3d/platform/cursor/CursorType.class";
+    private static final String INPUT_QUIRKS =
+        "net/minecraft/client/input/InputQuirks.class";
+    private static final String MOUSE_HANDLER =
+        "net/minecraft/client/MouseHandler.class";
 
     private FoliumPatcherMain() {
     }
@@ -109,6 +119,11 @@ public final class FoliumPatcherMain {
         boolean sawMonitor = false;
         boolean sawMonitorManager = false;
         boolean sawVideoMode = false;
+        boolean sawNativeLibrariesBootstrap = false;
+        boolean sawBlaze3D = false;
+        boolean sawCursorType = false;
+        boolean sawInputQuirks = false;
+        boolean sawMouseHandler = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -179,6 +194,21 @@ public final class FoliumPatcherMain {
                 } else if (VIDEO_MODE.equals(entry.getName())) {
                     bytes = patchVideoMode(bytes, applied);
                     sawVideoMode = true;
+                } else if (NATIVE_LIBRARIES_BOOTSTRAP.equals(entry.getName())) {
+                    bytes = patchNativeLibrariesBootstrap(bytes, applied);
+                    sawNativeLibrariesBootstrap = true;
+                } else if (BLAZE3D.equals(entry.getName())) {
+                    bytes = patchBlaze3D(bytes, applied);
+                    sawBlaze3D = true;
+                } else if (CURSOR_TYPE.equals(entry.getName())) {
+                    bytes = patchCursorType(bytes, applied);
+                    sawCursorType = true;
+                } else if (INPUT_QUIRKS.equals(entry.getName())) {
+                    bytes = patchInputQuirks(bytes, applied);
+                    sawInputQuirks = true;
+                } else if (MOUSE_HANDLER.equals(entry.getName())) {
+                    bytes = patchMouseHandler(bytes, applied);
+                    sawMouseHandler = true;
                 }
 
                 out.write(bytes);
@@ -200,7 +230,12 @@ public final class FoliumPatcherMain {
             !sawClipboardManager ||
             !sawMonitor ||
             !sawMonitorManager ||
-            !sawVideoMode
+            !sawVideoMode ||
+            !sawNativeLibrariesBootstrap ||
+            !sawBlaze3D ||
+            !sawCursorType ||
+            !sawInputQuirks ||
+            !sawMouseHandler
         ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
@@ -332,6 +367,204 @@ public final class FoliumPatcherMain {
             "PreferredGraphicsApi.getBackendsToTry: force FoliumWebGpuBackend"
         );
 
+        return write(node);
+    }
+
+    private static byte[] patchNativeLibrariesBootstrap(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        replaceWithReturnVoid(node, "loadLibraries", "()V");
+
+        MethodNode vulkanAvailable = requireMethod(
+            node,
+            "isVulkanLoaderAvailable",
+            "()Z"
+        );
+        vulkanAvailable.instructions.clear();
+        vulkanAvailable.tryCatchBlocks.clear();
+        if (vulkanAvailable.localVariables != null) {
+            vulkanAvailable.localVariables.clear();
+        }
+        vulkanAvailable.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        vulkanAvailable.instructions.add(new InsnNode(Opcodes.IRETURN));
+        vulkanAvailable.maxStack = 1;
+        vulkanAvailable.maxLocals = 0;
+
+        applied.add("NativeLibrariesBootstrap.loadLibraries: browser no-op");
+        applied.add("NativeLibrariesBootstrap.isVulkanLoaderAvailable: false");
+        return write(node);
+    }
+
+    private static byte[] patchBlaze3D(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode getTime = requireMethod(node, "getTime", "()D");
+        getTime.instructions.clear();
+        getTime.tryCatchBlocks.clear();
+        if (getTime.localVariables != null) {
+            getTime.localVariables.clear();
+        }
+        getTime.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumSystemBridge",
+            "timeSeconds",
+            "()D",
+            false
+        ));
+        getTime.instructions.add(new InsnNode(Opcodes.DRETURN));
+        getTime.maxStack = 2;
+        getTime.maxLocals = 0;
+
+        applied.add("Blaze3D.getTime: browser clock bridge");
+        return write(node);
+    }
+
+    private static byte[] patchCursorType(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode select = requireMethod(node, "select", "()V");
+        select.instructions.clear();
+        select.tryCatchBlocks.clear();
+        if (select.localVariables != null) {
+            select.localVariables.clear();
+        }
+        select.instructions.add(new InsnNode(Opcodes.RETURN));
+        select.maxStack = 0;
+        select.maxLocals = 1;
+
+        MethodNode create = requireMethod(
+            node,
+            "createStandardCursor",
+            "(ILjava/lang/String;Lcom/mojang/blaze3d/platform/cursor/CursorType;)" +
+                "Lcom/mojang/blaze3d/platform/cursor/CursorType;"
+        );
+        create.instructions.clear();
+        create.tryCatchBlocks.clear();
+        if (create.localVariables != null) {
+            create.localVariables.clear();
+        }
+        create.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        create.instructions.add(new InsnNode(Opcodes.ARETURN));
+        create.maxStack = 1;
+        create.maxLocals = 3;
+
+        MethodNode clinit = requireMethod(node, "<clinit>", "()V");
+        clinit.instructions.clear();
+        clinit.tryCatchBlocks.clear();
+        if (clinit.localVariables != null) {
+            clinit.localVariables.clear();
+        }
+        clinit.instructions.add(new TypeInsnNode(
+            Opcodes.NEW,
+            "com/mojang/blaze3d/platform/cursor/CursorType"
+        ));
+        clinit.instructions.add(new InsnNode(Opcodes.DUP));
+        clinit.instructions.add(new org.objectweb.asm.tree.LdcInsnNode("default"));
+        clinit.instructions.add(new InsnNode(Opcodes.LCONST_1));
+        clinit.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESPECIAL,
+            "com/mojang/blaze3d/platform/cursor/CursorType",
+            "<init>",
+            "(Ljava/lang/String;J)V",
+            false
+        ));
+        clinit.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTSTATIC,
+            "com/mojang/blaze3d/platform/cursor/CursorType",
+            "DEFAULT",
+            "Lcom/mojang/blaze3d/platform/cursor/CursorType;"
+        ));
+        clinit.instructions.add(new InsnNode(Opcodes.RETURN));
+        clinit.maxStack = 4;
+        clinit.maxLocals = 0;
+
+        applied.add("CursorType: remove SDL cursor creation/selection");
+        return write(node);
+    }
+
+    private static byte[] patchInputQuirks(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode quit = requireMethod(node, "isQuitShortcutDown", "()Z");
+        quit.instructions.clear();
+        quit.tryCatchBlocks.clear();
+        if (quit.localVariables != null) {
+            quit.localVariables.clear();
+        }
+        quit.instructions.add(new InsnNode(Opcodes.ICONST_0));
+        quit.instructions.add(new InsnNode(Opcodes.IRETURN));
+        quit.maxStack = 1;
+        quit.maxLocals = 0;
+
+        applied.add("InputQuirks.isQuitShortcutDown: disable SDL modifier poll");
+        return write(node);
+    }
+
+    private static byte[] patchMouseHandler(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode resync = requireMethod(
+            node,
+            "resyncMousePosition",
+            "()V"
+        );
+
+        resync.instructions.clear();
+        resync.tryCatchBlocks.clear();
+        if (resync.localVariables != null) {
+            resync.localVariables.clear();
+        }
+
+        resync.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        resync.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumInputBridge",
+            "mouseX",
+            "()D",
+            false
+        ));
+        resync.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "net/minecraft/client/MouseHandler",
+            "xpos",
+            "D"
+        ));
+
+        resync.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        resync.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumInputBridge",
+            "mouseY",
+            "()D",
+            false
+        ));
+        resync.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+            Opcodes.PUTFIELD,
+            "net/minecraft/client/MouseHandler",
+            "ypos",
+            "D"
+        ));
+
+        resync.instructions.add(new InsnNode(Opcodes.RETURN));
+        resync.maxStack = 3;
+        resync.maxLocals = 1;
+
+        applied.add("MouseHandler.resyncMousePosition: browser pointer state");
         return write(node);
     }
 
