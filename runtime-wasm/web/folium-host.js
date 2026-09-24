@@ -47,6 +47,12 @@ function toWebGpuFormat(format) {
     }
 }
 
+function normalizePipelineFormat(format) {
+    if (!format) return foliumHostState.format;
+    if (format.includes("-")) return format;
+    return toWebGpuFormat(format);
+}
+
 function toWebGpuTextureUsage(renderPearlUsage) {
     return GPUTextureUsage.COPY_SRC |
         GPUTextureUsage.COPY_DST |
@@ -140,18 +146,102 @@ globalThis.__foliumWebGpuBridge = {
     },
 
     pushRenderPassDebugGroup(renderPassToken, label) {
-        const pass = requireResource(renderPassToken, "renderPass");
-        pass.pushDebugGroup(label || "Folium");
+        requireResource(renderPassToken, "renderPass")
+            .pushDebugGroup(label || "Folium");
     },
 
     popRenderPassDebugGroup(renderPassToken) {
-        const pass = requireResource(renderPassToken, "renderPass");
-        pass.popDebugGroup();
+        requireResource(renderPassToken, "renderPass").popDebugGroup();
     },
 
     setRenderPassScissor(renderPassToken, x, y, width, height) {
+        requireResource(renderPassToken, "renderPass")
+            .setScissorRect(x, y, width, height);
+    },
+
+    createBootstrapTrianglePipeline(colorFormat) {
+        if (!foliumHostState.deviceReady) {
+            throw new Error("Folium WebGPU device is not ready");
+        }
+
+        const shader = foliumHostState.device.createShaderModule({
+            label: "Folium bootstrap triangle shader",
+            code: `
+                struct VertexOut {
+                    @builtin(position) position: vec4f,
+                    @location(0) color: vec3f,
+                };
+
+                @vertex
+                fn vs_main(@builtin(vertex_index) index: u32) -> VertexOut {
+                    var positions = array<vec2f, 3>(
+                        vec2f( 0.0,  0.62),
+                        vec2f(-0.58, -0.46),
+                        vec2f( 0.58, -0.46)
+                    );
+
+                    var colors = array<vec3f, 3>(
+                        vec3f(0.45, 0.95, 0.66),
+                        vec3f(0.25, 0.58, 0.98),
+                        vec3f(0.92, 0.42, 0.64)
+                    );
+
+                    var out: VertexOut;
+                    out.position = vec4f(positions[index], 0.0, 1.0);
+                    out.color = colors[index];
+                    return out;
+                }
+
+                @fragment
+                fn fs_main(in: VertexOut) -> @location(0) vec4f {
+                    return vec4f(in.color, 1.0);
+                }
+            `
+        });
+
+        const pipeline = foliumHostState.device.createRenderPipeline({
+            label: "Folium bootstrap triangle pipeline",
+            layout: "auto",
+            vertex: {
+                module: shader,
+                entryPoint: "vs_main"
+            },
+            fragment: {
+                module: shader,
+                entryPoint: "fs_main",
+                targets: [{
+                    format: normalizePipelineFormat(colorFormat)
+                }]
+            },
+            primitive: {
+                topology: "triangle-list",
+                cullMode: "none"
+            }
+        });
+
+        return storeResource("pipeline", pipeline);
+    },
+
+    destroyPipeline(pipelineToken) {
+        requireResource(pipelineToken, "pipeline");
+        resources.delete(pipelineToken);
+    },
+
+    setRenderPassPipeline(renderPassToken, pipelineToken) {
         const pass = requireResource(renderPassToken, "renderPass");
-        pass.setScissorRect(x, y, width, height);
+        const pipeline = requireResource(pipelineToken, "pipeline");
+        pass.setPipeline(pipeline);
+    },
+
+    drawRenderPass(
+        renderPassToken,
+        vertexCount,
+        instanceCount,
+        firstVertex,
+        firstInstance
+    ) {
+        requireResource(renderPassToken, "renderPass")
+            .draw(vertexCount, instanceCount, firstVertex, firstInstance);
     },
 
     endRenderPass(renderPassToken) {
