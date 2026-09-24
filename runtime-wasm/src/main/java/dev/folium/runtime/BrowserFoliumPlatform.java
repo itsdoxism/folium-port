@@ -15,9 +15,7 @@ public final class BrowserFoliumPlatform implements FoliumPlatform {
 
     private final WindowHost window = new BrowserWindowHost();
     private final InputHost input = new BrowserInputHost();
-    private final NetworkHost network = endpoint -> {
-        throw unsupported("network");
-    };
+    private final NetworkHost network = new BrowserNetworkHost();
     private final StorageHost storage = new UnsupportedStorageHost();
     private final AudioHost audio = new UnsupportedAudioHost();
 
