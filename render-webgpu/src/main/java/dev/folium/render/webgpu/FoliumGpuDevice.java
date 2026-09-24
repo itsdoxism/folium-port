@@ -10,6 +10,7 @@ import com.mojang.renderpearl.api.device.GpuSurface;
 import com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.pipeline.ShaderSource;
+import com.mojang.renderpearl.api.pipeline.ShaderType;
 import com.mojang.renderpearl.api.textures.AddressMode;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuSampler;
@@ -209,7 +210,53 @@ public final class FoliumGpuDevice implements GpuDevice {
         Executor executor
     ) {
         ensureOpen();
-        return CompletableFuture.failedFuture(unsupported("compilePipeline"));
+
+        return CompletableFuture.supplyAsync(() -> {
+            var shaders = pipeline.getShaders();
+            var vertexId = shaders.get(ShaderType.VERTEX);
+            var fragmentId = shaders.get(ShaderType.FRAGMENT);
+
+            if (vertexId == null || fragmentId == null) {
+                throw new IllegalStateException(
+                    "Folium requires both vertex and fragment shaders"
+                );
+            }
+
+            String vertexSource = shaderSource.getShader(vertexId, ShaderType.VERTEX);
+            String fragmentSource = shaderSource.getShader(fragmentId, ShaderType.FRAGMENT);
+
+            if (vertexSource == null) {
+                throw new IllegalStateException(
+                    "Missing Folium vertex shader source: " + vertexId
+                );
+            }
+
+            if (fragmentSource == null) {
+                throw new IllegalStateException(
+                    "Missing Folium fragment shader source: " + fragmentId
+                );
+            }
+
+            String vertexGlsl = FoliumShaderPreprocessor.applyDefinesAndValidate(
+                vertexSource,
+                pipeline.getShaderDefines()
+            );
+
+            String fragmentGlsl = FoliumShaderPreprocessor.applyDefinesAndValidate(
+                fragmentSource,
+                pipeline.getShaderDefines()
+            );
+
+            FoliumCompiledRenderPipeline compiled =
+                FoliumCompiledRenderPipeline.fromMinecraftShaders(
+                    graphics,
+                    pipeline,
+                    vertexGlsl,
+                    fragmentGlsl
+                );
+
+            return (CompiledRenderPipeline.Pending) () -> compiled;
+        }, executor);
     }
 
     @Override
