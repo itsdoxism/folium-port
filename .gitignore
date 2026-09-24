@@ -14,6 +14,7 @@ out/
 # Local Minecraft files — never commit proprietary client binaries/assets
 local/
 minecraft-client-*.jar
+folium-minecraft-*.jar
 *.client.jar
 
 # Generated inspection output
