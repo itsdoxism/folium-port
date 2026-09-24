@@ -1,0 +1,30 @@
+plugins {
+    id "java"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+def minecraftJar = providers.gradleProperty("minecraftJar")
+    .orElse(providers.environmentVariable("FOLIUM_MINECRAFT_JAR"))
+
+if (minecraftJar.isPresent()) {
+    dependencies {
+        compileOnly files(minecraftJar.get())
+    }
+} else {
+    tasks.withType(JavaCompile).configureEach {
+        enabled = false
+    }
+
+    tasks.register("explainMinecraftJar") {
+        doLast {
+            println "render-webgpu requires the local Minecraft 26.3 client JAR."
+            println "Use -PminecraftJar=/path/to/minecraft-client-26.3.jar"
+            println "or set FOLIUM_MINECRAFT_JAR."
+        }
+    }
+}
