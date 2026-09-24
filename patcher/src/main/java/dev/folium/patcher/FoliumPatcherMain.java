@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HexFormat;
@@ -91,6 +92,12 @@ public final class FoliumPatcherMain {
 
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
+
+                if (isSignatureEntry(entry.getName())) {
+                    applied.add("strip JAR signature metadata: " + entry.getName());
+                    continue;
+                }
+
                 JarEntry copy = new JarEntry(entry.getName());
                 copy.setTime(0L);
                 out.putNextEntry(copy);
@@ -105,7 +112,14 @@ public final class FoliumPatcherMain {
                     bytes = in.readAllBytes();
                 }
 
-                if (SHADER_MANAGER.equals(entry.getName())) {
+                if ("META-INF/MANIFEST.MF".equalsIgnoreCase(entry.getName())) {
+                    bytes = (
+                        "Manifest-Version: 1.0\r\n" +
+                        "Main-Class: net.minecraft.client.Main\r\n" +
+                        "\r\n"
+                    ).getBytes(StandardCharsets.UTF_8);
+                    applied.add("sanitize signed JAR manifest");
+                } else if (SHADER_MANAGER.equals(entry.getName())) {
                     bytes = patchShaderManager(bytes, applied);
                     sawShaderManager = true;
                 } else if (PREFERRED_GRAPHICS_API.equals(entry.getName())) {
@@ -293,6 +307,19 @@ public final class FoliumPatcherMain {
         return new IllegalStateException(
             "Minecraft 26.3 patch target drift: " + message
         );
+    }
+
+    private static boolean isSignatureEntry(String name) {
+        String upper = name.toUpperCase(java.util.Locale.ROOT);
+
+        if (!upper.startsWith("META-INF/")) {
+            return false;
+        }
+
+        return upper.endsWith(".SF") ||
+            upper.endsWith(".RSA") ||
+            upper.endsWith(".DSA") ||
+            upper.endsWith(".EC");
     }
 
     private static String sha256(Path file) throws IOException {
