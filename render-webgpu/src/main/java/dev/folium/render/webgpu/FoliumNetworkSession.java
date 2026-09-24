@@ -3,11 +3,14 @@ package dev.folium.render.webgpu;
 import dev.folium.platform.FoliumRuntime;
 import dev.folium.platform.NetworkHost;
 import net.minecraft.network.ProtocolInfo;
+import net.minecraft.network.protocol.BundlerInfo;
 import net.minecraft.network.protocol.Packet;
 
 import javax.crypto.Cipher;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Queue;
 
 public final class FoliumNetworkSession implements AutoCloseable {
     private final NetworkHost.Connection transport;
@@ -22,6 +25,10 @@ public final class FoliumNetworkSession implements AutoCloseable {
     private Cipher encryptCipher;
 
     private byte[] inboundStream = new byte[0];
+
+    private BundlerInfo.Bundler inboundBundler;
+    private final Queue<Packet<?>> readyInboundPackets =
+        new ArrayDeque<>();
 
     public FoliumNetworkSession(String endpoint) {
         this.transport = FoliumRuntime.platform()
@@ -42,6 +49,8 @@ public final class FoliumNetworkSession implements AutoCloseable {
             protocol,
             "protocol"
         );
+        this.inboundBundler = null;
+        this.readyInboundPackets.clear();
     }
 
     public void setOutboundProtocol(ProtocolInfo<?> protocol) {
@@ -98,6 +107,21 @@ public final class FoliumNetworkSession implements AutoCloseable {
             );
         }
 
+        protocol.bundlerInfo().unbundlePacket(
+            packet,
+            this::sendPhysicalPacket
+        );
+    }
+
+    private void sendPhysicalPacket(Packet<?> packet) {
+        ProtocolInfo<?> protocol = outboundProtocol;
+
+        if (protocol == null) {
+            throw new IllegalStateException(
+                "Folium outbound protocol changed during bundle send"
+            );
+        }
+
         byte[] packetPayload = FoliumPacketCodec.encode(
             protocol,
             packet
@@ -124,8 +148,12 @@ public final class FoliumNetworkSession implements AutoCloseable {
     }
 
     public Packet<?> pollPacket() {
-        ProtocolInfo<?> protocol = inboundProtocol;
+        Packet<?> ready = readyInboundPackets.poll();
+        if (ready != null) {
+            return ready;
+        }
 
+        ProtocolInfo<?> protocol = inboundProtocol;
         if (protocol == null) {
             return null;
         }
@@ -134,37 +162,84 @@ public final class FoliumNetworkSession implements AutoCloseable {
             FoliumTcpFrameCodec.Frame frame =
                 FoliumTcpFrameCodec.tryRead(inboundStream);
 
-            if (frame != null) {
-                inboundStream = frame.remaining();
+            if (frame == null) {
+                byte[] chunk = transport.poll();
 
-                byte[] packetPayload =
-                    FoliumCompressionCodec.decode(
-                        frame.payload(),
-                        compressionThreshold,
-                        validateDecompressed
+                if (chunk == null) {
+                    return null;
+                }
+
+                if (decryptCipher != null) {
+                    chunk = updateCipher(
+                        decryptCipher,
+                        chunk,
+                        "decrypt"
                     );
+                }
 
-                return FoliumPacketCodec.decode(
-                    protocol,
-                    packetPayload
+                appendInbound(chunk);
+                continue;
+            }
+
+            inboundStream = frame.remaining();
+
+            byte[] packetPayload =
+                FoliumCompressionCodec.decode(
+                    frame.payload(),
+                    compressionThreshold,
+                    validateDecompressed
                 );
+
+            Packet<?> packet = FoliumPacketCodec.decode(
+                protocol,
+                packetPayload
+            );
+
+            Packet<?> logical = acceptInboundPacket(
+                protocol.bundlerInfo(),
+                packet
+            );
+
+            if (logical != null) {
+                return logical;
+            }
+        }
+    }
+
+    private Packet<?> acceptInboundPacket(
+        BundlerInfo bundlerInfo,
+        Packet<?> packet
+    ) {
+        if (inboundBundler != null) {
+            verifyNonTerminal(packet);
+
+            Packet<?> bundled = inboundBundler.addPacket(packet);
+
+            if (bundled != null) {
+                inboundBundler = null;
+                return bundled;
             }
 
-            byte[] chunk = transport.poll();
+            return null;
+        }
 
-            if (chunk == null) {
-                return null;
-            }
+        BundlerInfo.Bundler newBundler =
+            bundlerInfo.startPacketBundling(packet);
 
-            if (decryptCipher != null) {
-                chunk = updateCipher(
-                    decryptCipher,
-                    chunk,
-                    "decrypt"
-                );
-            }
+        if (newBundler != null) {
+            verifyNonTerminal(packet);
+            inboundBundler = newBundler;
+            return null;
+        }
 
-            appendInbound(chunk);
+        return packet;
+    }
+
+    private static void verifyNonTerminal(Packet<?> packet) {
+        if (packet.isTerminal()) {
+            throw new IllegalStateException(
+                "Terminal message received inside packet bundle"
+            );
         }
     }
 
