@@ -1,0 +1,21 @@
+plugins {
+    id "application"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "org.java-websocket:Java-WebSocket:1.6.0"
+}
+
+application {
+    mainClass = "dev.folium.gateway.FoliumGatewayMain"
+}
