@@ -3,16 +3,13 @@ package dev.folium.platform;
 /**
  * Browser graphics state prepared before Minecraft's synchronous renderer boot.
  *
- * Resource methods use opaque integer tokens so the Minecraft-facing modules
- * do not depend on JavaScript object types.
+ * Resource methods use opaque integer tokens so Minecraft-facing modules do not
+ * depend on JavaScript object types.
  */
 public interface GraphicsHost {
     boolean isWebGpuAvailable();
-
     boolean isDeviceReady();
-
     String adapterName();
-
     int deviceToken();
 
     int createTexture(
@@ -28,7 +25,6 @@ public interface GraphicsHost {
     void destroyTexture(int textureToken);
 
     int createTextureView(int textureToken, int baseMipLevel, int mipLevels);
-
     void releaseTextureView(int textureViewToken);
 
     int createCommandEncoder();
@@ -44,15 +40,18 @@ public interface GraphicsHost {
     );
 
     void pushRenderPassDebugGroup(int renderPassToken, String label);
-
     void popRenderPassDebugGroup(int renderPassToken);
+    void setRenderPassScissor(int renderPassToken, int x, int y, int width, int height);
 
-    void setRenderPassScissor(
+    int createBootstrapTrianglePipeline(String colorFormat);
+    void destroyPipeline(int pipelineToken);
+    void setRenderPassPipeline(int renderPassToken, int pipelineToken);
+    void drawRenderPass(
         int renderPassToken,
-        int x,
-        int y,
-        int width,
-        int height
+        int vertexCount,
+        int instanceCount,
+        int firstVertex,
+        int firstInstance
     );
 
     void endRenderPass(int renderPassToken);
