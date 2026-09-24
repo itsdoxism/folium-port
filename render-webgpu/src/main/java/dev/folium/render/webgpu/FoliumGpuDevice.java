@@ -89,7 +89,7 @@ public final class FoliumGpuDevice implements GpuDevice {
     @Override
     public CommandEncoder createCommandEncoder() {
         ensureOpen();
-        throw unsupported("createCommandEncoder");
+        return new FoliumCommandEncoder();
     }
 
     @Override
@@ -123,7 +123,16 @@ public final class FoliumGpuDevice implements GpuDevice {
         int mipLevels
     ) {
         ensureOpen();
-        throw unsupported("createTexture");
+        String resolvedLabel = label == null ? "" : String.valueOf(label.get());
+        return new FoliumGpuTexture(
+            resolvedLabel,
+            usage,
+            format,
+            width,
+            height,
+            depthOrLayers,
+            mipLevels
+        );
     }
 
     @Override
@@ -137,19 +146,27 @@ public final class FoliumGpuDevice implements GpuDevice {
         int mipLevels
     ) {
         ensureOpen();
-        throw unsupported("createTexture");
+        return new FoliumGpuTexture(
+            label,
+            usage,
+            format,
+            width,
+            height,
+            depthOrLayers,
+            mipLevels
+        );
     }
 
     @Override
     public GpuTextureView createTextureView(GpuTexture texture) {
         ensureOpen();
-        throw unsupported("createTextureView");
+        return new FoliumGpuTextureView(texture, 0, texture.getMipLevels());
     }
 
     @Override
     public GpuTextureView createTextureView(GpuTexture texture, int baseMipLevel, int mipLevels) {
         ensureOpen();
-        throw unsupported("createTextureView");
+        return new FoliumGpuTextureView(texture, baseMipLevel, mipLevels);
     }
 
     @Override
