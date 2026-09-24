@@ -684,6 +684,30 @@ public final class FoliumPatcherMain {
         replaceWithReturnVoid(node, "flushChannel", "()V");
         replaceWithReturnVoid(node, "setReadOnly", "()V");
 
+        MethodNode cipherSetup = requireMethod(
+            node,
+            "setEncryptionKey",
+            "(Ljavax/crypto/Cipher;Ljavax/crypto/Cipher;)V"
+        );
+        cipherSetup.instructions.clear();
+        cipherSetup.tryCatchBlocks.clear();
+        if (cipherSetup.localVariables != null) {
+            cipherSetup.localVariables.clear();
+        }
+        cipherSetup.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        cipherSetup.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        cipherSetup.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        cipherSetup.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumConnectionBridge",
+            "setEncryptionKey",
+            "(Lnet/minecraft/network/Connection;Ljavax/crypto/Cipher;Ljavax/crypto/Cipher;)V",
+            false
+        ));
+        cipherSetup.instructions.add(new InsnNode(Opcodes.RETURN));
+        cipherSetup.maxStack = 3;
+        cipherSetup.maxLocals = 3;
+
         MethodNode compression = requireMethod(
             node,
             "setupCompression",
@@ -721,6 +745,7 @@ public final class FoliumPatcherMain {
         applied.add("Connection send/tick/disconnect: FoliumNetworkSession bridge");
         applied.add("Connection status/flush/read-only: browser transport semantics");
         applied.add("Connection.setupCompression: Folium session compression state");
+        applied.add("Connection.setEncryptionKey: Folium stream cipher state");
 
         return write(node);
     }
