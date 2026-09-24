@@ -1,0 +1,12 @@
+[package]
+name = "folium-shader-translator"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+naga = { version = "26.0.0", default-features = false, features = ["spv-in", "wgsl-out"] }
+wasm-bindgen = "0.2"
