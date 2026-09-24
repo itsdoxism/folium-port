@@ -59,6 +59,17 @@ public final class FoliumConnectionBridge {
         require(connection).session.send(packet);
     }
 
+    public static void setupCompression(
+        Connection connection,
+        int threshold,
+        boolean validateDecompressed
+    ) {
+        require(connection).session.setupCompression(
+            threshold,
+            validateDecompressed
+        );
+    }
+
     public static boolean isConnected(Connection connection) {
         State state = STATES.get(connection);
         return state != null && state.session.isOpen();
