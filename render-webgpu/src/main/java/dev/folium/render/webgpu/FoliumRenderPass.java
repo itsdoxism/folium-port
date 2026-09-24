@@ -92,12 +92,38 @@ public final class FoliumRenderPass implements RenderPass {
 
     @Override
     public void setVertexBuffer(int slot, GpuBufferSlice vertexBuffer) {
-        throw unsupported("setVertexBuffer");
+        ensureOpen();
+
+        if (!(vertexBuffer.buffer() instanceof FoliumGpuBuffer buffer)) {
+            throw new IllegalArgumentException(
+                "Folium render pass received a non-Folium vertex buffer"
+            );
+        }
+
+        graphics.setRenderPassVertexBuffer(
+            token,
+            slot,
+            buffer.token(),
+            vertexBuffer.offset(),
+            vertexBuffer.length()
+        );
     }
 
     @Override
     public void setIndexBuffer(GpuBuffer indexBuffer, IndexType indexType) {
-        throw unsupported("setIndexBuffer");
+        ensureOpen();
+
+        if (!(indexBuffer instanceof FoliumGpuBuffer buffer)) {
+            throw new IllegalArgumentException(
+                "Folium render pass received a non-Folium index buffer"
+            );
+        }
+
+        graphics.setRenderPassIndexBuffer(
+            token,
+            buffer.token(),
+            indexType == IndexType.SHORT ? "uint16" : "uint32"
+        );
     }
 
     @Override
@@ -108,7 +134,15 @@ public final class FoliumRenderPass implements RenderPass {
         int vertexOffset,
         int firstInstance
     ) {
-        throw unsupported("drawIndexed");
+        ensureOpen();
+        graphics.drawIndexedRenderPass(
+            token,
+            indexCount,
+            instanceCount,
+            firstIndex,
+            vertexOffset,
+            firstInstance
+        );
     }
 
     @Override
