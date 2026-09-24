@@ -1,0 +1,11 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "folium-port"
+
+include("platform-api")
+include("runtime-wasm")
