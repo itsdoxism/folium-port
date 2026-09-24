@@ -3,6 +3,8 @@ package dev.folium.runtime;
 import dev.folium.platform.GraphicsHost;
 import org.teavm.jso.JSBody;
 
+import java.nio.ByteBuffer;
+
 public final class BrowserGraphicsHost implements GraphicsHost {
     @Override @JSBody(script = "return !!globalThis.__foliumHostState?.webGpuAvailable;")
     public native boolean isWebGpuAvailable();
@@ -36,6 +38,11 @@ public final class BrowserGraphicsHost implements GraphicsHost {
     @JSBody(params={"label","usage","size"},
         script="return globalThis.__foliumWebGpuBridge.createBuffer(label, usage, size);")
     public native int createBuffer(String label, int usage, long size);
+
+    @Override
+    @JSBody(params={"bufferToken","offset","data"},
+        script="globalThis.__foliumWebGpuBridge.writeBuffer(bufferToken, offset, data);")
+    public native void writeBuffer(int bufferToken, long offset, ByteBuffer data);
 
     @Override
     @JSBody(script="return globalThis.__foliumWebGpuBridge.createBootstrapTriangleIndexBuffer();")
