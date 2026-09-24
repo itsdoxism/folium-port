@@ -1,17 +1,11 @@
 package dev.folium.render.webgpu;
 
 import net.minecraft.client.renderer.ShaderDefines;
+import net.minecraft.resources.Identifier;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Browser-safe preprocessing that can run before the GLSL -> WGSL translator.
- *
- * Minecraft's desktop GlslCompiler uses native shaderc include callbacks.
- * Folium cannot use that path in the browser, so raw include expansion must be
- * supplied by the browser shader-source registry before this method succeeds.
- */
 public final class FoliumShaderPreprocessor {
     private static final Pattern INCLUDE = Pattern.compile(
         "(?m)^\\s*#include\\s+[<\"]([^>\"]+)[>\"]\\s*$"
@@ -20,7 +14,17 @@ public final class FoliumShaderPreprocessor {
     private FoliumShaderPreprocessor() {
     }
 
+    public static String prepare(
+        Identifier shaderId,
+        String source,
+        ShaderDefines defines
+    ) {
+        String expanded = FoliumShaderIncludeExpander.expand(shaderId, source);
+        return applyDefinesAndValidate(shaderId, expanded, defines);
+    }
+
     public static String applyDefinesAndValidate(
+        Identifier shaderId,
         String source,
         ShaderDefines defines
     ) {
@@ -31,7 +35,8 @@ public final class FoliumShaderPreprocessor {
         Matcher include = INCLUDE.matcher(source);
         if (include.find()) {
             throw new IllegalStateException(
-                "Folium shader still contains unresolved include: " +
+                "Folium shader " + shaderId +
+                    " still contains unresolved include: " +
                     include.group(1)
             );
         }
@@ -48,7 +53,7 @@ public final class FoliumShaderPreprocessor {
         }
 
         return source.substring(0, versionEnd) +
-            "\n" + directives +
+            directives +
             source.substring(versionEnd);
     }
 
