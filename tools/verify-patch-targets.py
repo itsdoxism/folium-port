@@ -15,6 +15,20 @@ TARGETS = {
     "com/mojang/blaze3d/systems/RenderSystem.class": {
         ("initBackendSystem", "()Lnet/minecraft/util/TimeSource$NanoTimeSource;"),
     },
+    "com/mojang/blaze3d/platform/Window.class": {
+        ("<init>", "(Lcom/mojang/blaze3d/platform/WindowEventHandler;Lcom/mojang/blaze3d/platform/DisplayData;Ljava/lang/String;ZLjava/lang/String;Lcom/mojang/blaze3d/platform/MonitorManager;Lcom/mojang/renderpearl/api/device/GpuBackend;I)V"),
+        ("getPlatform", "()Ljava/lang/String;"),
+        ("queryFramebufferSize", "()Lcom/mojang/blaze3d/platform/Window$FramebufferSize;"),
+        ("refreshFramebufferSize", "()V"),
+        ("setTitle", "(Ljava/lang/String;)V"),
+        ("setWindowMaxSize", "(II)V"),
+        ("close", "()V"),
+        ("setIcon", "(Lnet/minecraft/server/packs/PackMetadataResources;Lcom/mojang/blaze3d/platform/IconSet;)V"),
+        ("updateFullscreenIfChanged", "()V"),
+        ("changeFullscreenVideoMode", "()V"),
+        ("selectCursor", "(Lcom/mojang/blaze3d/platform/cursor/CursorType;)V"),
+        ("setFullscreen", "(Z)V"),
+    },
 }
 
 
