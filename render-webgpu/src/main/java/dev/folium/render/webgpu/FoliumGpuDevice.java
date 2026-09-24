@@ -4,7 +4,11 @@ import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.commands.CommandEncoder;
 import com.mojang.renderpearl.api.commands.GpuQueryPool;
+import com.mojang.renderpearl.api.device.DeviceFeatures;
 import com.mojang.renderpearl.api.device.DeviceInfo;
+import com.mojang.renderpearl.api.device.DeviceLimits;
+import com.mojang.renderpearl.api.device.DeviceType;
+import com.mojang.renderpearl.api.device.HintsAndWorkarounds;
 import com.mojang.renderpearl.api.device.GpuDebugOptions;
 import com.mojang.renderpearl.api.device.GpuDevice;
 import com.mojang.renderpearl.api.device.GpuSurface;
@@ -33,6 +37,42 @@ import java.util.function.Supplier;
  * loudly so Minecraft reachability tests reveal the next required primitive.
  */
 public final class FoliumGpuDevice implements GpuDevice {
+    private static final DeviceInfo FALLBACK_DEVICE_INFO = new DeviceInfo(
+        "Folium WebGPU Adapter",
+        "Browser",
+        "WebGPU",
+        true,
+        "Folium WebGPU",
+        1.0F,
+        new DeviceLimits(
+            1,
+            256,
+            8192,
+            256L * 1024L * 1024L,
+            1,
+            8,
+            1
+        ),
+        new DeviceFeatures(
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        ),
+        Collections.emptySet(),
+        new HintsAndWorkarounds(
+            false,
+            false,
+            false,
+            true
+        ),
+        DeviceType.OTHER
+    );
+
     private final GpuDebugOptions debugOptions;
     private boolean closed;
 
@@ -151,7 +191,7 @@ public final class FoliumGpuDevice implements GpuDevice {
     @Override
     public DeviceInfo getDeviceInfo() {
         ensureOpen();
-        throw unsupported("getDeviceInfo");
+        return FALLBACK_DEVICE_INFO;
     }
 
     public GpuDebugOptions debugOptions() {
