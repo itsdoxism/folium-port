@@ -5,6 +5,8 @@ import dev.folium.platform.NetworkHost;
 import net.minecraft.network.ProtocolInfo;
 import net.minecraft.network.protocol.Packet;
 
+import javax.crypto.Cipher;
+import java.util.Arrays;
 import java.util.Objects;
 
 public final class FoliumNetworkSession implements AutoCloseable {
@@ -15,6 +17,11 @@ public final class FoliumNetworkSession implements AutoCloseable {
 
     private int compressionThreshold = -1;
     private boolean validateDecompressed = true;
+
+    private Cipher decryptCipher;
+    private Cipher encryptCipher;
+
+    private byte[] inboundStream = new byte[0];
 
     public FoliumNetworkSession(String endpoint) {
         this.transport = FoliumRuntime.platform()
@@ -64,6 +71,24 @@ public final class FoliumNetworkSession implements AutoCloseable {
         return compressionThreshold;
     }
 
+    public void setEncryptionKey(
+        Cipher decryptCipher,
+        Cipher encryptCipher
+    ) {
+        this.decryptCipher = Objects.requireNonNull(
+            decryptCipher,
+            "decryptCipher"
+        );
+        this.encryptCipher = Objects.requireNonNull(
+            encryptCipher,
+            "encryptCipher"
+        );
+    }
+
+    public boolean encryptionEnabled() {
+        return decryptCipher != null && encryptCipher != null;
+    }
+
     public void send(Packet<?> packet) {
         ProtocolInfo<?> protocol = outboundProtocol;
 
@@ -78,38 +103,108 @@ public final class FoliumNetworkSession implements AutoCloseable {
             packet
         );
 
-        transport.send(
-            FoliumCompressionCodec.encode(
-                packetPayload,
-                compressionThreshold
-            )
+        byte[] compressionEnvelope = FoliumCompressionCodec.encode(
+            packetPayload,
+            compressionThreshold
         );
-    }
 
-    public Packet<?> pollPacket() {
-        byte[] payload = transport.poll();
-        if (payload == null) {
-            return null;
-        }
+        byte[] tcpFrame = FoliumTcpFrameCodec.frame(
+            compressionEnvelope
+        );
 
-        ProtocolInfo<?> protocol = inboundProtocol;
-
-        if (protocol == null) {
-            throw new IllegalStateException(
-                "Folium inbound protocol is not configured"
+        if (encryptCipher != null) {
+            tcpFrame = updateCipher(
+                encryptCipher,
+                tcpFrame,
+                "encrypt"
             );
         }
 
-        byte[] packetPayload = FoliumCompressionCodec.decode(
-            payload,
-            compressionThreshold,
-            validateDecompressed
+        transport.send(tcpFrame);
+    }
+
+    public Packet<?> pollPacket() {
+        ProtocolInfo<?> protocol = inboundProtocol;
+
+        if (protocol == null) {
+            return null;
+        }
+
+        while (true) {
+            FoliumTcpFrameCodec.Frame frame =
+                FoliumTcpFrameCodec.tryRead(inboundStream);
+
+            if (frame != null) {
+                inboundStream = frame.remaining();
+
+                byte[] packetPayload =
+                    FoliumCompressionCodec.decode(
+                        frame.payload(),
+                        compressionThreshold,
+                        validateDecompressed
+                    );
+
+                return FoliumPacketCodec.decode(
+                    protocol,
+                    packetPayload
+                );
+            }
+
+            byte[] chunk = transport.poll();
+
+            if (chunk == null) {
+                return null;
+            }
+
+            if (decryptCipher != null) {
+                chunk = updateCipher(
+                    decryptCipher,
+                    chunk,
+                    "decrypt"
+                );
+            }
+
+            appendInbound(chunk);
+        }
+    }
+
+    private void appendInbound(byte[] chunk) {
+        if (chunk.length == 0) {
+            return;
+        }
+
+        int oldLength = inboundStream.length;
+
+        inboundStream = Arrays.copyOf(
+            inboundStream,
+            oldLength + chunk.length
         );
 
-        return FoliumPacketCodec.decode(
-            protocol,
-            packetPayload
+        System.arraycopy(
+            chunk,
+            0,
+            inboundStream,
+            oldLength,
+            chunk.length
         );
+    }
+
+    private static byte[] updateCipher(
+        Cipher cipher,
+        byte[] input,
+        String operation
+    ) {
+        byte[] output = cipher.update(input);
+
+        if (output == null) {
+            throw new IllegalStateException(
+                "Minecraft AES/CFB8 " +
+                    operation +
+                    " produced no output"
+            );
+        }
+
+        return output;
     }
 
     @Override
