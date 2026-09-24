@@ -1,20 +1,20 @@
 package dev.folium.render.webgpu;
 
-import dev.folium.runtime.BrowserTextInputBridge;
+import dev.folium.platform.FoliumRuntime;
 
 public final class FoliumTextInputBridge {
     private FoliumTextInputBridge() {
     }
 
     public static void startTextInput() {
-        BrowserTextInputBridge.start();
+        FoliumRuntime.platform().input().startTextInput();
     }
 
     public static void stopTextInput() {
-        BrowserTextInputBridge.stop();
+        FoliumRuntime.platform().input().stopTextInput();
     }
 
     public static boolean isTextInputActive() {
-        return BrowserTextInputBridge.isActive();
+        return FoliumRuntime.platform().input().textInputActive();
     }
 }
