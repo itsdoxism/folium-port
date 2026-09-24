@@ -57,9 +57,6 @@ TARGETS = {
         ("loadLibraries", "()V"),
         ("isVulkanLoaderAvailable", "()Z"),
     },
-    "com/mojang/blaze3d/Blaze3D.class": {
-        ("getTime", "()D"),
-    },
     "com/mojang/blaze3d/platform/cursor/CursorType.class": {
         ("select", "()V"),
         ("createStandardCursor", "(ILjava/lang/String;Lcom/mojang/blaze3d/platform/cursor/CursorType;)Lcom/mojang/blaze3d/platform/cursor/CursorType;"),
@@ -70,6 +67,20 @@ TARGETS = {
     },
     "net/minecraft/client/MouseHandler.class": {
         ("resyncMousePosition", "()V"),
+    },
+    "com/mojang/blaze3d/Blaze3D.class": {
+        ("getTime", "()D"),
+        ("openUri", "(Ljava/net/URI;)V"),
+        ("openPath", "(Ljava/nio/file/Path;)V"),
+    },
+    "com/mojang/blaze3d/platform/MessageBox.class": {
+        ("error", "(Ljava/lang/String;)V"),
+        ("errorWithContinue", "(Ljava/lang/String;)Z"),
+    },
+    "com/mojang/blaze3d/platform/MacosUtil.class": {
+        ("disableCloseWindowMenuItem", "()V"),
+        ("setFullscreenMenuVisibility", "(Z)V"),
+        ("setCtrlClickEmulatesRightClick", "(Z)V"),
     },
     "com/mojang/blaze3d/platform/Window.class": {
         ("<init>", "(Lcom/mojang/blaze3d/platform/WindowEventHandler;Lcom/mojang/blaze3d/platform/DisplayData;Ljava/lang/String;ZLjava/lang/String;Lcom/mojang/blaze3d/platform/MonitorManager;Lcom/mojang/renderpearl/api/device/GpuBackend;I)V"),
