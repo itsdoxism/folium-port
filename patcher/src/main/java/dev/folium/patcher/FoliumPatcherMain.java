@@ -116,7 +116,7 @@ public final class FoliumPatcherMain {
                 out.write(bytes);
                 out.closeEntry();
             }
-        } catch (Throwable failure) {
+        } catch (IOException | RuntimeException | Error failure) {
             Files.deleteIfExists(output);
             throw failure;
         }
@@ -286,7 +286,7 @@ public final class FoliumPatcherMain {
             );
         }
 
-        return matches.getFirst();
+        return matches.get(0);
     }
 
     private static IllegalStateException drift(String message) {
