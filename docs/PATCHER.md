@@ -13,6 +13,18 @@ For Pandora Launcher, a typical 26.3 path is:
 ~/.local/share/PandoraLauncher/libraries/net/minecraft/26.3/minecraft-client-26.3.jar
 ```
 
+## Verify patch targets
+
+Before patching:
+
+```bash
+python tools/verify-patch-targets.py \
+  "$HOME/.local/share/PandoraLauncher/libraries/net/minecraft/26.3/minecraft-client-26.3.jar"
+```
+
+The verifier checks the exact classes, method names and JVM descriptors used by
+the patcher.
+
 ## Run
 
 ```bash
@@ -49,6 +61,19 @@ FoliumWebGpuBackend
 ```
 
 so browser builds do not instantiate the desktop OpenGL or Vulkan backends.
+
+## Mojang JAR signatures
+
+The official 26.3 client JAR is signed.
+
+Any bytecode transformation invalidates those signatures, so the patcher:
+
+- removes `META-INF/*.SF`;
+- removes `META-INF/*.RSA`, `*.DSA` and `*.EC`;
+- rewrites the manifest to retain only the normal launch metadata.
+
+Without this step a modified signed JAR can fail verification at class-load
+time.
 
 ## Drift safety
 
