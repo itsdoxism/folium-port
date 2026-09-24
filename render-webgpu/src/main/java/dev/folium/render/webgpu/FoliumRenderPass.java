@@ -19,12 +19,15 @@ import java.util.function.Supplier;
 public final class FoliumRenderPass implements RenderPass {
     private final GraphicsHost graphics;
     private final int token;
+    private final int width;
+    private final int height;
     private boolean closed;
-    private boolean scissorEnabled;
 
-    FoliumRenderPass(GraphicsHost graphics, int token) {
+    FoliumRenderPass(GraphicsHost graphics, int token, int width, int height) {
         this.graphics = graphics;
         this.token = token;
+        this.width = width;
+        this.height = height;
     }
 
     @Override
@@ -73,18 +76,12 @@ public final class FoliumRenderPass implements RenderPass {
     public void enableScissor(int x, int y, int width, int height) {
         ensureOpen();
         graphics.setRenderPassScissor(token, x, y, width, height);
-        scissorEnabled = true;
     }
 
     @Override
     public void disableScissor() {
         ensureOpen();
-        // WebGPU has no explicit "disable scissor" command. The full pass size
-        // will be restored once attachment dimensions are carried into this
-        // wrapper. Until then, callers should avoid toggling it back off.
-        if (scissorEnabled) {
-            throw unsupported("disableScissor");
-        }
+        graphics.setRenderPassScissor(token, 0, 0, width, height);
     }
 
     @Override
