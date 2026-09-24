@@ -9,3 +9,4 @@ rootProject.name = "folium-port"
 
 include("platform-api")
 include("runtime-wasm")
+include("render-webgpu")
