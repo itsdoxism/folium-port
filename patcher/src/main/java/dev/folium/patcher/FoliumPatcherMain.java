@@ -60,6 +60,10 @@ public final class FoliumPatcherMain {
         "net/minecraft/client/input/InputQuirks.class";
     private static final String MOUSE_HANDLER =
         "net/minecraft/client/MouseHandler.class";
+    private static final String MESSAGE_BOX =
+        "com/mojang/blaze3d/platform/MessageBox.class";
+    private static final String MACOS_UTIL =
+        "com/mojang/blaze3d/platform/MacosUtil.class";
 
     private FoliumPatcherMain() {
     }
@@ -124,6 +128,8 @@ public final class FoliumPatcherMain {
         boolean sawCursorType = false;
         boolean sawInputQuirks = false;
         boolean sawMouseHandler = false;
+        boolean sawMessageBox = false;
+        boolean sawMacosUtil = false;
 
         try (
             JarFile jar = new JarFile(input.toFile());
@@ -209,6 +215,12 @@ public final class FoliumPatcherMain {
                 } else if (MOUSE_HANDLER.equals(entry.getName())) {
                     bytes = patchMouseHandler(bytes, applied);
                     sawMouseHandler = true;
+                } else if (MESSAGE_BOX.equals(entry.getName())) {
+                    bytes = patchMessageBox(bytes, applied);
+                    sawMessageBox = true;
+                } else if (MACOS_UTIL.equals(entry.getName())) {
+                    bytes = patchMacosUtil(bytes, applied);
+                    sawMacosUtil = true;
                 }
 
                 out.write(bytes);
@@ -235,7 +247,9 @@ public final class FoliumPatcherMain {
             !sawBlaze3D ||
             !sawCursorType ||
             !sawInputQuirks ||
-            !sawMouseHandler
+            !sawMouseHandler ||
+            !sawMessageBox ||
+            !sawMacosUtil
         ) {
             Files.deleteIfExists(output);
             throw new IllegalStateException(
@@ -370,6 +384,74 @@ public final class FoliumPatcherMain {
         return write(node);
     }
 
+    private static byte[] patchMessageBox(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        MethodNode error = requireMethod(
+            node,
+            "error",
+            "(Ljava/lang/String;)V"
+        );
+        error.instructions.clear();
+        error.tryCatchBlocks.clear();
+        if (error.localVariables != null) {
+            error.localVariables.clear();
+        }
+        error.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        error.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumUtilityBridge",
+            "error",
+            "(Ljava/lang/String;)V",
+            false
+        ));
+        error.instructions.add(new InsnNode(Opcodes.RETURN));
+        error.maxStack = 1;
+        error.maxLocals = 1;
+
+        MethodNode cont = requireMethod(
+            node,
+            "errorWithContinue",
+            "(Ljava/lang/String;)Z"
+        );
+        cont.instructions.clear();
+        cont.tryCatchBlocks.clear();
+        if (cont.localVariables != null) {
+            cont.localVariables.clear();
+        }
+        cont.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        cont.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumUtilityBridge",
+            "errorWithContinue",
+            "(Ljava/lang/String;)Z",
+            false
+        ));
+        cont.instructions.add(new InsnNode(Opcodes.IRETURN));
+        cont.maxStack = 1;
+        cont.maxLocals = 1;
+
+        applied.add("MessageBox: replace SDL message boxes with browser dialogs");
+        return write(node);
+    }
+
+    private static byte[] patchMacosUtil(
+        byte[] original,
+        List<String> applied
+    ) {
+        ClassNode node = read(original);
+
+        replaceWithReturnVoid(node, "disableCloseWindowMenuItem", "()V");
+        replaceWithReturnVoid(node, "setFullscreenMenuVisibility", "(Z)V");
+        replaceWithReturnVoid(node, "setCtrlClickEmulatesRightClick", "(Z)V");
+
+        applied.add("MacosUtil: remove SDL/macOS native menu hints");
+        return write(node);
+    }
+
     private static byte[] patchNativeLibrariesBootstrap(
         byte[] original,
         List<String> applied
@@ -422,6 +504,51 @@ public final class FoliumPatcherMain {
         getTime.maxLocals = 0;
 
         applied.add("Blaze3D.getTime: browser clock bridge");
+        MethodNode openUri = requireMethod(
+            node,
+            "openUri",
+            "(Ljava/net/URI;)V"
+        );
+        openUri.instructions.clear();
+        openUri.tryCatchBlocks.clear();
+        if (openUri.localVariables != null) {
+            openUri.localVariables.clear();
+        }
+        openUri.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        openUri.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumUtilityBridge",
+            "openUri",
+            "(Ljava/net/URI;)V",
+            false
+        ));
+        openUri.instructions.add(new InsnNode(Opcodes.RETURN));
+        openUri.maxStack = 1;
+        openUri.maxLocals = 1;
+
+        MethodNode openPath = requireMethod(
+            node,
+            "openPath",
+            "(Ljava/nio/file/Path;)V"
+        );
+        openPath.instructions.clear();
+        openPath.tryCatchBlocks.clear();
+        if (openPath.localVariables != null) {
+            openPath.localVariables.clear();
+        }
+        openPath.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        openPath.instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "dev/folium/render/webgpu/FoliumUtilityBridge",
+            "openPath",
+            "(Ljava/nio/file/Path;)V",
+            false
+        ));
+        openPath.instructions.add(new InsnNode(Opcodes.RETURN));
+        openPath.maxStack = 1;
+        openPath.maxLocals = 1;
+
+        applied.add("Blaze3D.openUri/openPath: browser external navigation");
         return write(node);
     }
 
