@@ -65,14 +65,8 @@ public final class BrowserNetworkHost implements NetworkHost {
 
         let url = endpoint;
         if (endpoint.startsWith('minecraft://')) {
-            const target = endpoint.slice('minecraft://'.length);
-            const split = target.lastIndexOf(':');
-            const host = split >= 0 ? target.slice(0, split) : target;
-            const port = split >= 0 ? target.slice(split + 1) : '25565';
             const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            url = scheme + '//' + location.host +
-                '/folium-gateway?host=' + encodeURIComponent(host) +
-                '&port=' + encodeURIComponent(port);
+            url = scheme + '//' + location.host + '/folium-gateway';
         }
 
         const socket = new WebSocket(url);
