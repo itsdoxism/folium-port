@@ -1,0 +1,22 @@
+# Build output
+.gradle/
+build/
+out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Local Minecraft files — never commit proprietary client binaries/assets
+local/
+minecraft-client-*.jar
+*.client.jar
+
+# Generated inspection output
+reports/*.json
+reports/*.txt
+!reports/.gitkeep
