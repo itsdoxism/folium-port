@@ -20,7 +20,7 @@ public final class BrowserNetworkHost implements NetworkHost {
 
         @Override
         public boolean isOpen() {
-            return !closed && socketOpen(token);
+            return !closed && !socketClosed(token);
         }
 
         @Override
@@ -61,6 +61,7 @@ public final class BrowserNetworkHost implements NetworkHost {
 
         const token = state.nextToken++;
         const queue = [];
+        const outbox = [];
 
         let url = endpoint;
         if (endpoint.startsWith('minecraft://')) {
@@ -80,6 +81,7 @@ public final class BrowserNetworkHost implements NetworkHost {
         const entry = {
             socket,
             queue,
+            outbox,
             open: false,
             closed: false,
             error: null
@@ -89,6 +91,10 @@ public final class BrowserNetworkHost implements NetworkHost {
 
         socket.addEventListener('open', () => {
             entry.open = true;
+
+            for (const payload of entry.outbox.splice(0)) {
+                socket.send(payload);
+            }
         });
 
         socket.addEventListener('message', event => {
@@ -140,15 +146,29 @@ public final class BrowserNetworkHost implements NetworkHost {
 
     @JSBody(params = {"token", "payload"}, script = """
         const entry = globalThis.__foliumSockets?.sockets?.get(token);
-        if (!entry || entry.socket.readyState !== WebSocket.OPEN) {
-            throw new Error('Folium WebSocket is not open');
+        if (!entry || entry.closed) {
+            throw new Error('Folium WebSocket is closed');
         }
 
         const bytes = payload instanceof Uint8Array
-            ? payload
-            : new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength);
+            ? payload.slice()
+            : new Uint8Array(
+                payload.buffer,
+                payload.byteOffset,
+                payload.byteLength
+            ).slice();
 
-        entry.socket.send(bytes);
+        if (entry.socket.readyState === WebSocket.OPEN) {
+            entry.socket.send(bytes);
+            return;
+        }
+
+        if (entry.socket.readyState === WebSocket.CONNECTING) {
+            entry.outbox.push(bytes);
+            return;
+        }
+
+        throw new Error('Folium WebSocket cannot send in current state');
     """)
     private static native void sendBinary(int token, byte[] payload);
 
