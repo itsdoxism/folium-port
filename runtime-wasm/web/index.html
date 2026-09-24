@@ -40,23 +40,7 @@
 </head>
 <body>
 <canvas id="folium-canvas"></canvas>
-<div id="status">Loading Folium WASM-GC…</div>
-
-<script>
-(async () => {
-    const status = document.getElementById("status");
-
-    try {
-        const module = await TeaVM.wasmGC.load(
-            "../build/generated/teavm/wasm-gc/folium-smoke.wasm"
-        );
-        module.exports.main([]);
-    } catch (error) {
-        console.error(error);
-        status.textContent = "Folium WASM boot failed — see console";
-        status.dataset.ok = "false";
-    }
-})();
-</script>
+<div id="status">Folium · starting…</div>
+<script type="module" src="./folium-bootstrap.js"></script>
 </body>
 </html>
