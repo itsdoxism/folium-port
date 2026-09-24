@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public final class FoliumConnectionBridge {
     private static final int MAX_PACKETS_PER_TICK = 4096;
 
@@ -101,7 +102,7 @@ public final class FoliumConnectionBridge {
             }
 
             try {
-                packet.handle(listener);
+                ((Packet) packet).handle(listener);
             } catch (Exception error) {
                 listener.onPacketError(packet, error);
             }
