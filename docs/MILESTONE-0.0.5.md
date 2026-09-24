@@ -1,52 +1,79 @@
-# Milestone 0.0.5 — RenderPearl contract shell
+# Milestone 0.0.5 — async WebGPU preboot
 
-This milestone moves Folium from a standalone WebGPU probe toward a real
-Minecraft rendering backend.
+## Problem
 
-## Included
-
-- WebGPU adapter/device/context initialization happens **before** Java main.
-- `FoliumWebGpuBackend` implements RenderPearl's `GpuBackend`.
-- `FoliumGpuDevice` implements the complete public `GpuDevice` method
-  surface, initially failing loudly for unimplemented GPU primitives.
-- `FoliumGpuSurface` implements configuration/acquire/present lifecycle state.
-
-## Why WebGPU initializes before Minecraft
-
-RenderPearl's backend creation API is synchronous:
+RenderPearl exposes a synchronous device factory:
 
 ```text
-GpuBackend.createDevice(...)
+GpuBackend.createDevice(...) -> GpuDevice
 ```
 
-but browser WebGPU initialization is asynchronous:
+WebGPU exposes asynchronous initialization:
 
 ```text
-navigator.gpu.requestAdapter()
-adapter.requestDevice()
+await navigator.gpu.requestAdapter()
+await adapter.requestDevice()
 ```
 
-Folium resolves this mismatch by performing browser GPU initialization in the
-HTML/JS bootstrap before TeaVM starts Minecraft.
+Trying to perform those awaits inside RenderPearl's synchronous method would
+fight both APIs.
 
-The resulting browser handles are stored in temporary host state:
+## Folium solution
+
+Move asynchronous browser initialization before Minecraft starts:
 
 ```text
-globalThis.__foliumWebGpu
+HTML launcher
+    |
+    +-- await requestAdapter()
+    +-- await requestDevice()
+    +-- configure canvas
+    +-- store host state
+    |
+    v
+start TeaVM / Minecraft
+    |
+    v
+FoliumWebGpuBackend.createDevice()
+    |
+    +-- synchronously inspect prepared host
+    +-- return Java wrapper around prepared device
 ```
 
-Later modules will replace direct global access with a typed Folium host bridge.
+The temporary host state is exposed at:
 
-## Next blocker
+```text
+globalThis.__foliumHostState
+```
 
-The first call expected to fail once Minecraft reaches real rendering is one
-of:
+Java accesses only a tiny typed `GraphicsHost` abstraction.
 
-- command encoder creation;
-- buffer creation;
-- texture creation;
-- pipeline compilation.
+## Why this matters
 
-That failure is useful: it tells us the exact primitive Minecraft requests
-first, so implementation can proceed from the real boot path instead of
-building the entire GPU API blindly.
+This removes a major impedance mismatch before the Minecraft client is in the
+WASM reachability graph.
+
+The eventual launcher can also use this phase to check:
+
+- browser feature support;
+- adapter availability;
+- limits/features;
+- canvas setup;
+- future audio unlock state;
+- persistent storage availability.
+
+## Next milestone
+
+Implement the first Java `GpuDevice` wrapper around the prepared host token.
+
+Initially, unsupported RenderPearl methods may fail explicitly. The target is
+to implement enough of:
+
+```text
+GpuDevice
+GpuSurface
+CommandEncoder
+GpuTexture/View
+```
+
+to clear/present a frame through the same RenderPearl calls Minecraft uses.
