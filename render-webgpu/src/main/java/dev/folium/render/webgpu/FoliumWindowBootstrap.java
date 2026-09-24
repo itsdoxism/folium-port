@@ -1,7 +1,7 @@
 package dev.folium.render.webgpu;
 
 import dev.folium.platform.FoliumRuntime;
-import net.minecraft.client.renderer.Window;
+import com.mojang.blaze3d.platform.Window;
 
 public final class FoliumWindowBootstrap {
     private FoliumWindowBootstrap() {
