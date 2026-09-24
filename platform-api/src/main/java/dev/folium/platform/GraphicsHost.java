@@ -1,44 +1,22 @@
 package dev.folium.platform;
 
-/**
- * Browser graphics state prepared before Minecraft's synchronous renderer boot.
- *
- * Resource methods use opaque integer tokens so Minecraft-facing modules do not
- * depend on JavaScript object types.
- */
 public interface GraphicsHost {
     boolean isWebGpuAvailable();
     boolean isDeviceReady();
     String adapterName();
     int deviceToken();
 
-    int createTexture(
-        String label,
-        int usage,
-        String format,
-        int width,
-        int height,
-        int depthOrLayers,
-        int mipLevels
-    );
-
+    int createTexture(String label, int usage, String format, int width, int height, int depthOrLayers, int mipLevels);
     void destroyTexture(int textureToken);
-
     int createTextureView(int textureToken, int baseMipLevel, int mipLevels);
     void releaseTextureView(int textureViewToken);
 
+    int createBuffer(String label, int usage, long size);
+    int createBootstrapTriangleIndexBuffer();
+    void destroyBuffer(int bufferToken);
+
     int createCommandEncoder();
-
-    int beginColorRenderPass(
-        int encoderToken,
-        int textureViewToken,
-        boolean clear,
-        float red,
-        float green,
-        float blue,
-        float alpha
-    );
-
+    int beginColorRenderPass(int encoderToken, int textureViewToken, boolean clear, float red, float green, float blue, float alpha);
     void pushRenderPassDebugGroup(int renderPassToken, String label);
     void popRenderPassDebugGroup(int renderPassToken);
     void setRenderPassScissor(int renderPassToken, int x, int y, int width, int height);
@@ -46,24 +24,20 @@ public interface GraphicsHost {
     int createBootstrapTrianglePipeline(String colorFormat);
     void destroyPipeline(int pipelineToken);
     void setRenderPassPipeline(int renderPassToken, int pipelineToken);
-    void drawRenderPass(
+    void setRenderPassVertexBuffer(int renderPassToken, int slot, int bufferToken, long offset, long length);
+    void setRenderPassIndexBuffer(int renderPassToken, int bufferToken, String indexFormat);
+    void drawRenderPass(int renderPassToken, int vertexCount, int instanceCount, int firstVertex, int firstInstance);
+    void drawIndexedRenderPass(
         int renderPassToken,
-        int vertexCount,
+        int indexCount,
         int instanceCount,
-        int firstVertex,
+        int firstIndex,
+        int baseVertex,
         int firstInstance
     );
 
     void endRenderPass(int renderPassToken);
 
-    void clearColorTexture(
-        int encoderToken,
-        int textureToken,
-        float red,
-        float green,
-        float blue,
-        float alpha
-    );
-
+    void clearColorTexture(int encoderToken, int textureToken, float red, float green, float blue, float alpha);
     void submitCommandEncoder(int encoderToken);
 }
