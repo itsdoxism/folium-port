@@ -10,6 +10,14 @@ public final class FoliumInputBridge {
         return FoliumRuntime.platform().input().keyDown(keyCode);
     }
 
+    public static double mouseX() {
+        return FoliumRuntime.platform().input().mouseX();
+    }
+
+    public static double mouseY() {
+        return FoliumRuntime.platform().input().mouseY();
+    }
+
     public static void grabMouse() {
         FoliumRuntime.platform().window().requestPointerLock();
     }
