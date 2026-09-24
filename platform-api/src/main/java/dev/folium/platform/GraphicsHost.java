@@ -24,6 +24,7 @@ public interface GraphicsHost {
     void setRenderPassScissor(int renderPassToken, int x, int y, int width, int height);
 
     int createBootstrapTrianglePipeline(String colorFormat);
+    int createVertexColorPipeline(String layoutJson, String colorFormat);
     void destroyPipeline(int pipelineToken);
     void setRenderPassPipeline(int renderPassToken, int pipelineToken);
     void setRenderPassVertexBuffer(int renderPassToken, int slot, int bufferToken, long offset, long length);
