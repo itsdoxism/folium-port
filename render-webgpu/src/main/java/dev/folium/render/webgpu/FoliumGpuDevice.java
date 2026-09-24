@@ -237,12 +237,14 @@ public final class FoliumGpuDevice implements GpuDevice {
                 );
             }
 
-            String vertexGlsl = FoliumShaderPreprocessor.applyDefinesAndValidate(
+            String vertexGlsl = FoliumShaderPreprocessor.prepare(
+                vertexId,
                 vertexSource,
                 pipeline.getShaderDefines()
             );
 
-            String fragmentGlsl = FoliumShaderPreprocessor.applyDefinesAndValidate(
+            String fragmentGlsl = FoliumShaderPreprocessor.prepare(
+                fragmentId,
                 fragmentSource,
                 pipeline.getShaderDefines()
             );
