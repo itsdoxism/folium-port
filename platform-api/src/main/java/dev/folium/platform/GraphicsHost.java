@@ -27,17 +27,9 @@ public interface GraphicsHost {
     void setRenderPassVertexBuffer(int renderPassToken, int slot, int bufferToken, long offset, long length);
     void setRenderPassIndexBuffer(int renderPassToken, int bufferToken, String indexFormat);
     void drawRenderPass(int renderPassToken, int vertexCount, int instanceCount, int firstVertex, int firstInstance);
-    void drawIndexedRenderPass(
-        int renderPassToken,
-        int indexCount,
-        int instanceCount,
-        int firstIndex,
-        int baseVertex,
-        int firstInstance
-    );
+    void drawIndexedRenderPass(int renderPassToken, int indexCount, int instanceCount, int firstIndex, int baseVertex, int firstInstance);
 
     void endRenderPass(int renderPassToken);
-
     void clearColorTexture(int encoderToken, int textureToken, float red, float green, float blue, float alpha);
     void submitCommandEncoder(int encoderToken);
 }
