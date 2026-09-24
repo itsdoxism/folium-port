@@ -1,70 +1,70 @@
 # Minecraft Connection -> Folium WebSocket seam
 
-Folium keeps Minecraft's `Connection` object because game code, listeners and protocol transitions already depend on it. The Netty channel is replaced only for remote browser connections.
+Folium keeps Minecraft's `Connection` object and replaces its remote Netty channel with `FoliumNetworkSession`.
 
-## State storage
+## Browser TCP stream model
 
-Browser transport state lives outside Minecraft's private fields in a `WeakHashMap<Connection, State>`.
-
-Each state contains the remote `InetSocketAddress` and a `FoliumNetworkSession`.
-
-## Connect
-
-The patched `Connection.connectToServer(...)` creates a normal `Connection(CLIENTBOUND)`, preserves the remote address, opens a Folium WebSocket session and returns without creating a Netty channel or event loop.
-
-The browser transport maps Minecraft connection requests to the same-origin WebSocket endpoint `/folium-gateway`.
-
-Packets sent while the WebSocket is still connecting are queued and flushed after the `open` event.
-
-## Protocol switching
-
-`setupInboundProtocol(...)` keeps Minecraft listener validation and stores the listener on the `Connection`, but replaces Netty pipeline mutation with `FoliumConnectionBridge.setInboundProtocol(...)`.
-
-`setupOutboundProtocol(...)` directly updates the session's outbound protocol.
-
-The initial outbound protocol is `HandshakeProtocols.SERVERBOUND`.
-
-## Compression
-
-`Connection.setupCompression(int, boolean)` is patched onto `FoliumNetworkSession`.
-
-Compression is applied after packet serialization and removed before packet decoding, matching Minecraft's Netty pipeline ordering:
+The browser session now owns the complete Minecraft TCP transport stack:
 
 ```text
 Packet
- -> ProtocolInfo codec
- -> compression envelope
- -> gateway outer frame
+  -> ProtocolInfo codec
+  -> optional compression envelope
+  -> outer VarInt frame
+  -> optional AES/CFB8 stream encryption
+  -> WebSocket raw byte tunnel
 ```
 
-Inbound reverses that sequence.
+Inbound reverses that exact order.
 
-## Send
+## Outer framing
 
-The patched send path routes packets to:
+`FoliumTcpFrameCodec` adds and removes Minecraft's outer VarInt packet length.
+
+Inbound WebSocket chunks are accumulated because TCP read boundaries and WebSocket chunk boundaries are not treated as packet boundaries.
+
+The frame decoder waits until a complete VarInt header and complete payload are available before returning a packet envelope.
+
+## Compression
+
+`Connection.setupCompression(int, boolean)` updates the session compression threshold.
+
+Compression is applied inside the outer TCP frame, matching Minecraft's normal pipeline ordering.
+
+## Online-mode encryption
+
+`Connection.setEncryptionKey(Cipher decrypt, Cipher encrypt)` now installs the two Minecraft `AES/CFB8/NoPadding` ciphers directly into the Folium session.
+
+After activation:
 
 ```text
-FoliumNetworkSession.send(Packet)
-    -> ProtocolInfo.codec().encode(...)
-    -> optional Minecraft compression envelope
-    -> WebSocket binary message
+outbound full TCP frame -> encryptCipher.update(...)
+inbound raw TCP bytes   -> decryptCipher.update(...)
 ```
 
-The three public send overloads and private `sendPacket(...)` are redirected.
+Cipher objects are stateful and remain continuous across WebSocket chunks.
 
-`ChannelFutureListener` completion callbacks are not yet modeled.
+## Login activation ordering
 
-## Tick / receive
+Minecraft normally sends `ServerboundKeyPacket` with a `ChannelFutureListener` callback that enables encryption only after the key-response packet has been written.
 
-The patched `Connection.tick()` drains up to 4096 inbound packets per tick, removes the current compression envelope when enabled, decodes using the current inbound protocol, checks the active `PacketListener`, and dispatches through `Packet.handle(listener)`.
+Folium does not have a Netty `ChannelFuture`, so the patched `ClientHandshakePacketListenerImpl.setEncryption(...)` performs the equivalent sequence synchronously:
 
-`TickablePacketListener.tick()` is still called once per connection tick.
+```text
+send ServerboundKeyPacket using plaintext framing
+then
+Connection.setEncryptionKey(...)
+```
 
-## Current limitations
+`BrowserNetworkHost.send(...)` copies/queues the already encoded bytes, so later enabling the cipher cannot retroactively encrypt the key-response packet.
 
-- packet bundling is not yet reproduced outside the Netty pipeline;
-- encryption is not yet supported;
-- `ChannelFutureListener` completion callbacks are ignored;
-- disconnect reason propagation on remote close is incomplete;
-- packet counters / bandwidth statistics are not updated by the bridge;
-- local/in-memory server connections remain a separate desktop path.
+## Remaining crypto risk
+
+The transport side of AES/CFB8 is implemented, but Minecraft's login handshake still relies on Java cryptography for:
+
+- AES secret-key generation;
+- SHA-1 server digest;
+- RSA encryption of the shared secret/challenge;
+- creation of the AES/CFB8 cipher objects.
+
+Whether the TeaVM/WASM target provides all required JCE primitives is still runtime-unverified.
