@@ -3,38 +3,58 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Folium WASM smoke test</title>
+    <title>Folium WebGPU probe</title>
     <style>
-        html, body { height: 100%; margin: 0; }
-        body {
-            display: grid;
-            place-items: center;
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
             background: #0b0d0c;
             color: #e7ece9;
-            font: 16px/1.5 system-ui, sans-serif;
+            font: 15px/1.5 system-ui, sans-serif;
         }
-        main { text-align: center; }
-        code { opacity: .75; }
+
+        body {
+            display: grid;
+            grid-template-rows: 1fr auto;
+        }
+
+        #folium-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            background: #111512;
+        }
+
+        #status {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(255,255,255,.1);
+        }
+
+        #status[data-ok="true"]::before {
+            content: "● ";
+        }
     </style>
     <script src="../build/generated/teavm/wasm-gc/folium-smoke.wasm-runtime.js"></script>
 </head>
 <body>
-<main>
-    <h1>Folium</h1>
-    <div id="status">Loading WASM-GC…</div>
-</main>
+<canvas id="folium-canvas"></canvas>
+<div id="status">Loading Folium WASM-GC…</div>
+
 <script>
 (async () => {
     const status = document.getElementById("status");
+
     try {
         const module = await TeaVM.wasmGC.load(
             "../build/generated/teavm/wasm-gc/folium-smoke.wasm"
         );
         module.exports.main([]);
-        status.textContent = "WASM-GC boot OK";
     } catch (error) {
         console.error(error);
-        status.textContent = "Boot failed — see console";
+        status.textContent = "Folium WASM boot failed — see console";
+        status.dataset.ok = "false";
     }
 })();
 </script>
