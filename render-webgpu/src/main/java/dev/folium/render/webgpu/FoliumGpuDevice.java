@@ -169,7 +169,27 @@ public final class FoliumGpuDevice implements GpuDevice {
     @Override
     public GpuBuffer createBuffer(Supplier<String> label, int usage, ByteBuffer initialData) {
         ensureOpen();
-        throw unsupported("createBuffer(initialData) — ByteBuffer upload bridge is next");
+
+        if (initialData == null) {
+            throw new NullPointerException("initialData");
+        }
+
+        ByteBuffer view = initialData.slice();
+        long size = view.remaining();
+        if (size <= 0) {
+            throw new IllegalArgumentException("Folium initial buffer data is empty");
+        }
+
+        String resolvedLabel = label == null ? "Folium buffer" : label.get();
+        int token = graphics.createBuffer(resolvedLabel, usage | GpuBuffer.USAGE_COPY_DST, size);
+        graphics.writeBuffer(token, 0L, view);
+
+        return new FoliumGpuBuffer(
+            graphics,
+            token,
+            size,
+            usage | GpuBuffer.USAGE_COPY_DST
+        );
     }
 
     @Override
