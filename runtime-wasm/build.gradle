@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     implementation project(":platform-api")
+    implementation teavm.libs.jso
 }
 
 teavm {
