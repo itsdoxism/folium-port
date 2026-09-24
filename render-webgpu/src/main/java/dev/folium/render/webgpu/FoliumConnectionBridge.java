@@ -70,6 +70,17 @@ public final class FoliumConnectionBridge {
         );
     }
 
+    public static void setEncryptionKey(
+        Connection connection,
+        javax.crypto.Cipher decryptCipher,
+        javax.crypto.Cipher encryptCipher
+    ) {
+        require(connection).session.setEncryptionKey(
+            decryptCipher,
+            encryptCipher
+        );
+    }
+
     public static boolean isConnected(Connection connection) {
         State state = STATES.get(connection);
         return state != null && state.session.isOpen();
