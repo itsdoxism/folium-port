@@ -365,6 +365,112 @@ globalThis.__foliumWebGpuBridge = {
         return storeResource("pipeline", pipeline);
     },
 
+    createPipelineFromState(pipelineStateJson) {
+        if (!foliumHostState.deviceReady) {
+            throw new Error("Folium WebGPU device is not ready");
+        }
+
+        const state = JSON.parse(pipelineStateJson);
+        if (state.polygonMode !== "fill") {
+            throw new Error(`Unsupported WebGPU polygon mode: ${state.polygonMode}`);
+        }
+
+        const shader = foliumHostState.device.createShaderModule({
+            label: "Folium RenderPipeline state probe shader",
+            code: `
+                struct VertexIn {
+                    @location(0) position: vec3f,
+                    @location(1) color: vec4f,
+                };
+
+                struct VertexOut {
+                    @builtin(position) position: vec4f,
+                    @location(0) color: vec4f,
+                };
+
+                @vertex
+                fn vs_main(input: VertexIn) -> VertexOut {
+                    var out: VertexOut;
+                    out.position = vec4f(input.position, 1.0);
+                    out.color = input.color;
+                    return out;
+                }
+
+                @fragment
+                fn fs_main(input: VertexOut) -> @location(0) vec4f {
+                    return input.color;
+                }
+            `
+        });
+
+        const buffers = state.vertexBuffers.map(layout => ({
+            arrayStride: layout.arrayStride,
+            stepMode: layout.stepMode,
+            attributes: layout.attributes.map(attribute => ({
+                shaderLocation: attribute.shaderLocation,
+                offset: attribute.offset,
+                format: attribute.webGpuFormat
+            }))
+        }));
+
+        const targets = state.colorTargets.map(target => {
+            const result = {
+                format: target.format,
+                writeMask: target.writeMask
+            };
+
+            if (target.blend) {
+                result.blend = {
+                    color: {
+                        operation: target.blend.color.operation,
+                        srcFactor: target.blend.color.srcFactor,
+                        dstFactor: target.blend.color.dstFactor
+                    },
+                    alpha: {
+                        operation: target.blend.alpha.operation,
+                        srcFactor: target.blend.alpha.srcFactor,
+                        dstFactor: target.blend.alpha.dstFactor
+                    }
+                };
+            }
+
+            return result;
+        });
+
+        const descriptor = {
+            label: "Folium translated RenderPipeline",
+            layout: "auto",
+            vertex: {
+                module: shader,
+                entryPoint: "vs_main",
+                buffers
+            },
+            fragment: {
+                module: shader,
+                entryPoint: "fs_main",
+                targets
+            },
+            primitive: {
+                topology: state.primitiveTopology,
+                frontFace: state.frontFace,
+                cullMode: state.cullMode
+            }
+        };
+
+        if (state.depthState) {
+            descriptor.depthStencil = {
+                format: state.depthState.format,
+                depthWriteEnabled: state.depthState.depthWriteEnabled,
+                depthCompare: state.depthState.depthCompare,
+                depthBias: state.depthState.depthBias,
+                depthBiasSlopeScale: state.depthState.depthBiasSlopeScale
+            };
+        }
+
+        const pipeline = foliumHostState.device.createRenderPipeline(descriptor);
+        return storeResource("pipeline", pipeline);
+    },
+
     destroyPipeline(pipelineToken) {
         requireResource(pipelineToken, "pipeline");
         resources.delete(pipelineToken);
