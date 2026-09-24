@@ -471,6 +471,102 @@ globalThis.__foliumWebGpuBridge = {
         return storeResource("pipeline", pipeline);
     },
 
+    createPipelineFromGlsl(pipelineStateJson, vertexGlsl, fragmentGlsl) {
+        if (!foliumHostState.deviceReady) {
+            throw new Error("Folium WebGPU device is not ready");
+        }
+
+        const translator = globalThis.__foliumShaderTranslator;
+        if (!translator?.ready) {
+            throw new Error("Folium shader translator is not ready");
+        }
+
+        const state = JSON.parse(pipelineStateJson);
+        if (state.polygonMode !== "fill") {
+            throw new Error(`Unsupported WebGPU polygon mode: ${state.polygonMode}`);
+        }
+
+        const vertexWgsl = translator.glslToWgsl(vertexGlsl, "vertex");
+        const fragmentWgsl = translator.glslToWgsl(fragmentGlsl, "fragment");
+
+        const vertexModule = foliumHostState.device.createShaderModule({
+            label: "Folium Minecraft vertex shader",
+            code: vertexWgsl
+        });
+
+        const fragmentModule = foliumHostState.device.createShaderModule({
+            label: "Folium Minecraft fragment shader",
+            code: fragmentWgsl
+        });
+
+        const buffers = state.vertexBuffers.map(layout => ({
+            arrayStride: layout.arrayStride,
+            stepMode: layout.stepMode,
+            attributes: layout.attributes.map(attribute => ({
+                shaderLocation: attribute.shaderLocation,
+                offset: attribute.offset,
+                format: attribute.webGpuFormat
+            }))
+        }));
+
+        const targets = state.colorTargets.map(target => {
+            const result = {
+                format: target.format,
+                writeMask: target.writeMask
+            };
+
+            if (target.blend) {
+                result.blend = {
+                    color: {
+                        operation: target.blend.color.operation,
+                        srcFactor: target.blend.color.srcFactor,
+                        dstFactor: target.blend.color.dstFactor
+                    },
+                    alpha: {
+                        operation: target.blend.alpha.operation,
+                        srcFactor: target.blend.alpha.srcFactor,
+                        dstFactor: target.blend.alpha.dstFactor
+                    }
+                };
+            }
+
+            return result;
+        });
+
+        const descriptor = {
+            label: "Folium Minecraft RenderPipeline",
+            layout: "auto",
+            vertex: {
+                module: vertexModule,
+                entryPoint: "main",
+                buffers
+            },
+            fragment: {
+                module: fragmentModule,
+                entryPoint: "main",
+                targets
+            },
+            primitive: {
+                topology: state.primitiveTopology,
+                frontFace: state.frontFace,
+                cullMode: state.cullMode
+            }
+        };
+
+        if (state.depthState) {
+            descriptor.depthStencil = {
+                format: state.depthState.format,
+                depthWriteEnabled: state.depthState.depthWriteEnabled,
+                depthCompare: state.depthState.depthCompare,
+                depthBias: state.depthState.depthBias,
+                depthBiasSlopeScale: state.depthState.depthBiasSlopeScale
+            };
+        }
+
+        const pipeline = foliumHostState.device.createRenderPipeline(descriptor);
+        return storeResource("pipeline", pipeline);
+    },
+
     destroyPipeline(pipelineToken) {
         requireResource(pipelineToken, "pipeline");
         resources.delete(pipelineToken);
