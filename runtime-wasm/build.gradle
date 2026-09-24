@@ -1,0 +1,23 @@
+plugins {
+    id "java"
+    id "org.teavm" version "0.15.0"
+}
+
+dependencies {
+    implementation project(":platform-api")
+}
+
+teavm {
+    all {
+        mainClass = "dev.folium.runtime.FoliumMain"
+    }
+
+    wasmGC {
+        targetFileName = "folium-smoke.wasm"
+        obfuscated = false
+        sourceMap = true
+        copyRuntime = true
+    }
+}
+
+tasks.assemble.dependsOn(tasks.buildWasmGC)
