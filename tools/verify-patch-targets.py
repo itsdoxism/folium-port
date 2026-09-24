@@ -15,6 +15,15 @@ TARGETS = {
     "com/mojang/blaze3d/systems/RenderSystem.class": {
         ("initBackendSystem", "()Lnet/minecraft/util/TimeSource$NanoTimeSource;"),
     },
+    "com/mojang/blaze3d/platform/SDLEventHandler.class": {
+        ("pollEvents", "()V"),
+        ("flushInputEvents", "()V"),
+    },
+    "com/mojang/blaze3d/platform/InputConstants.class": {
+        ("isKeyDown", "(I)Z"),
+        ("grabMouse", "(Lcom/mojang/blaze3d/platform/Window;DD)V"),
+        ("releaseMouse", "(Lcom/mojang/blaze3d/platform/Window;DD)V"),
+    },
     "com/mojang/blaze3d/platform/Window.class": {
         ("<init>", "(Lcom/mojang/blaze3d/platform/WindowEventHandler;Lcom/mojang/blaze3d/platform/DisplayData;Ljava/lang/String;ZLjava/lang/String;Lcom/mojang/blaze3d/platform/MonitorManager;Lcom/mojang/renderpearl/api/device/GpuBackend;I)V"),
         ("getPlatform", "()Ljava/lang/String;"),
