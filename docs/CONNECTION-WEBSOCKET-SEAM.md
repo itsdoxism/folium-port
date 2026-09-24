@@ -12,17 +12,7 @@ Each state contains the remote `InetSocketAddress` and a `FoliumNetworkSession`.
 
 The patched `Connection.connectToServer(...)` creates a normal `Connection(CLIENTBOUND)`, preserves the remote address, opens a Folium WebSocket session and returns without creating a Netty channel or event loop.
 
-The browser transport interprets:
-
-```text
-minecraft://host:port
-```
-
-as a same-origin gateway URL:
-
-```text
-ws(s)://current-host/folium-gateway?host=...&port=...
-```
+The browser transport maps Minecraft connection requests to the same-origin WebSocket endpoint `/folium-gateway`.
 
 Packets sent while the WebSocket is still connecting are queued and flushed after the `open` event.
 
@@ -34,6 +24,21 @@ Packets sent while the WebSocket is still connecting are queued and flushed afte
 
 The initial outbound protocol is `HandshakeProtocols.SERVERBOUND`.
 
+## Compression
+
+`Connection.setupCompression(int, boolean)` is patched onto `FoliumNetworkSession`.
+
+Compression is applied after packet serialization and removed before packet decoding, matching Minecraft's Netty pipeline ordering:
+
+```text
+Packet
+ -> ProtocolInfo codec
+ -> compression envelope
+ -> gateway outer frame
+```
+
+Inbound reverses that sequence.
+
 ## Send
 
 The patched send path routes packets to:
@@ -41,6 +46,7 @@ The patched send path routes packets to:
 ```text
 FoliumNetworkSession.send(Packet)
     -> ProtocolInfo.codec().encode(...)
+    -> optional Minecraft compression envelope
     -> WebSocket binary message
 ```
 
@@ -50,22 +56,14 @@ The three public send overloads and private `sendPacket(...)` are redirected.
 
 ## Tick / receive
 
-The patched `Connection.tick()` drains up to 4096 inbound packets per tick, decodes them using the current inbound protocol, checks the active `PacketListener`, and dispatches through `Packet.handle(listener)`.
+The patched `Connection.tick()` drains up to 4096 inbound packets per tick, removes the current compression envelope when enabled, decodes using the current inbound protocol, checks the active `PacketListener`, and dispatches through `Packet.handle(listener)`.
 
 `TickablePacketListener.tick()` is still called once per connection tick.
-
-## Status and disconnect
-
-`isConnected()` and `isConnecting()` use Folium session state instead of Netty channel state.
-
-`disconnect(DisconnectionDetails)` closes the WebSocket session and preserves Minecraft's disconnection details field.
-
-`flushChannel()` and `setReadOnly()` become browser-safe no-ops.
 
 ## Current limitations
 
 - packet bundling is not yet reproduced outside the Netty pipeline;
-- compression and encryption are not yet supported;
+- encryption is not yet supported;
 - `ChannelFutureListener` completion callbacks are ignored;
 - disconnect reason propagation on remote close is incomplete;
 - packet counters / bandwidth statistics are not updated by the bridge;
