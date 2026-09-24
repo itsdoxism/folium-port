@@ -16,3 +16,39 @@ dependencies {
 application {
     mainClass = "dev.folium.patcher.FoliumPatcher"
 }
+
+def minecraftJar = providers.gradleProperty("minecraftJar")
+    .orElse(providers.environmentVariable("FOLIUM_MINECRAFT_JAR"))
+
+def patchedJar = rootProject.layout.buildDirectory.file(
+    "folium/folium-minecraft-26.3.jar"
+)
+
+tasks.register("patchMinecraft", JavaExec) {
+    group = "folium"
+    description = "Patch the user's local Minecraft 26.3 client for Folium"
+
+    dependsOn(tasks.named("classes"))
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+
+    onlyIf {
+        if (!minecraftJar.isPresent()) {
+            logger.lifecycle(
+                "Folium: set -PminecraftJar=/path/to/minecraft-client-26.3.jar " +
+                    "or FOLIUM_MINECRAFT_JAR"
+            )
+            return false
+        }
+        return true
+    }
+
+    doFirst {
+        args(
+            file(minecraftJar.get()).absolutePath,
+            patchedJar.get().asFile.absolutePath
+        )
+    }
+
+    outputs.file(patchedJar)
+}
