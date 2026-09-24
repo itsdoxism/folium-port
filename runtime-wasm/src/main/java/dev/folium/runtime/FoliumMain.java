@@ -5,17 +5,15 @@ public final class FoliumMain {
     }
 
     public static void main(String[] args) {
-        if (!WebGpuProbe.prepareCanvas()) {
-            WebGpuProbe.setStatus("Folium booted, but canvas was not found", false);
+        if (!WebGpuProbe.isReady()) {
+            WebGpuProbe.setStatus("Folium WASM booted before WebGPU host state was ready", false);
             return;
         }
 
-        if (!WebGpuProbe.isAvailable()) {
-            WebGpuProbe.setStatus("Folium WASM-GC → browser bridge OK · WebGPU unavailable", false);
-            return;
+        if (WebGpuProbe.renderFirstFrame()) {
+            WebGpuProbe.setStatus("Folium WASM-GC → preinitialized WebGPU frame OK", true);
+        } else {
+            WebGpuProbe.setStatus("Folium WebGPU frame submission failed", false);
         }
-
-        WebGpuProbe.setStatus("Folium WASM-GC → requesting WebGPU device…", true);
-        WebGpuProbe.renderFirstFrame();
     }
 }
