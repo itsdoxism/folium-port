@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
  * progressively attached here.
  */
 public final class FoliumBackendCommandEncoder implements CommandEncoderBackend {
+    private FoliumBackendRenderPass activeRenderPass;
     @Override
     public void submit() {
         // CPU bootstrap commands are immediate.
@@ -33,12 +34,22 @@ public final class FoliumBackendCommandEncoder implements CommandEncoderBackend 
 
     @Override
     public RenderPassBackend createRenderPass(RenderPassDescriptor descriptor) {
-        throw unsupported("createRenderPass");
+        if (activeRenderPass != null) {
+            throw new IllegalStateException("Folium already has an active render pass");
+        }
+
+        activeRenderPass = new FoliumBackendRenderPass();
+        return activeRenderPass;
     }
 
     @Override
     public void submitRenderPass() {
-        // No render pass can currently be created.
+        if (activeRenderPass == null) {
+            throw new IllegalStateException("Folium has no active render pass to submit");
+        }
+
+        activeRenderPass.finish();
+        activeRenderPass = null;
     }
 
     @Override
