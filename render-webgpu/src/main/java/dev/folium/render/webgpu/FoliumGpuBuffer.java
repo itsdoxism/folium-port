@@ -18,15 +18,6 @@ public final class FoliumGpuBuffer implements GpuBuffer {
         this.usage = usage;
     }
 
-    static FoliumGpuBuffer bootstrapTriangleIndexBuffer(GraphicsHost graphics) {
-        return new FoliumGpuBuffer(
-            graphics,
-            graphics.createBootstrapTriangleIndexBuffer(),
-            6L,
-            USAGE_INDEX | USAGE_COPY_DST
-        );
-    }
-
     @Override
     public long size() {
         return size;
