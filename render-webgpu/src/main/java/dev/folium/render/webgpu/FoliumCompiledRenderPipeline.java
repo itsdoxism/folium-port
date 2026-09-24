@@ -40,6 +40,17 @@ public final class FoliumCompiledRenderPipeline implements CompiledRenderPipelin
         );
     }
 
+    public static FoliumCompiledRenderPipeline fromRenderPipeline(
+        GraphicsHost graphics,
+        com.mojang.renderpearl.api.pipeline.RenderPipeline pipeline
+    ) {
+        FoliumPipelineState state = FoliumPipelineStateMapper.map(pipeline);
+        return new FoliumCompiledRenderPipeline(
+            graphics,
+            graphics.createPipelineFromState(FoliumPipelineStateJson.encode(state))
+        );
+    }
+
     @Override
     public boolean isClosed() {
         return closed;
